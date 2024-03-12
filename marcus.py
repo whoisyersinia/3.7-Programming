@@ -43,13 +43,13 @@ class Player:
     def location(self, newlocation): self._location = newlocation
 
     # TODO create move method
-    def move(self, loc_list):
+    def move(self, location_list):
         """
-            moves the player
+            moves the player by checking if the dest is a valid dest
         """
         dest = str(input("Where would you like to move?")).upper()
 
-        for loc in loc_list:
+        for loc in location_list:
             if loc["name"] == self._location:
                 if dest in loc["dest"]:
                     self._location = dest
@@ -117,6 +117,15 @@ m = Map()
 # test player
 player = Player('test', 10, 10, current_location)
 
-while not player.move(loc_list):
-    print("Invalid command/Location not in destination")
 
+# input validator
+check_loc = player.move(loc_list)
+while not check_loc:
+    print("Invalid command/Location not in destination")
+    check_loc = player.move(loc_list)
+
+# prints current_loc
+for locs in loc_list:
+    if check_loc == locs["name"]:
+        new_location = Location(check_loc, locs["desc"], locs["dest"])
+        print(new_location.__str__())
