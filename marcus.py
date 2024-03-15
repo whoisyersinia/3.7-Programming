@@ -42,7 +42,6 @@ class Player:
     @location.setter
     def location(self, newlocation): self._location = newlocation
 
-    # TODO create move method
     def move(self, location_list):
         """
             moves the player by checking if the dest is a valid dest
@@ -62,9 +61,9 @@ class Location:
     """docstring for Location"""
 
     def __init__(self, name, desc, dest):
-        self.name = name
-        self.desc = desc
-        self.dest = dest
+        self._name = name
+        self._desc = desc
+        self._dest = dest
 
     @property
     def name(self): return self._name
@@ -87,16 +86,25 @@ class Location:
     def dest(self, value):
         self._dest = value
 
-    def __str__(self):
+    def dest_name(self, map_dest):
+        dest_name_list = []
+        for dest in map_dest:
+            if dest["name"] in self._dest:
+                dest_name_list.append(dest["desc"])
+
+        return dest_name_list
+
+    def print_location_info(self, dest_list):
         """prints the location name, desc, and possible dest"""
-        return f'You moved to {self._name}.\n{self._desc}.\nYou can move to {self._dest}.'
+        dest = ", ".join(dest_list)
+        return f'You moved to {self._name}.\n{self._desc}.\nYou can move to {dest}.'
 
 
 # TODO create map
-loc_list = [{"name": "A", "desc": "Room", "dest": ["B", "C", "D"]},
-            {"name": "B", "desc": "Path", "dest": ["C"]},
+LOC_LIST = [{"name": "A", "desc": "Room", "dest": ["B", "C", "D"]},
+            {"name": "B", "desc": "Path", "dest": ["C", "D"]},
             {"name": "C", "desc": "Path 2", "dest": []},
-            {"name": "D", "desc": "", "dest": []}]
+            {"name": "D", "desc": "Hello", "dest": []}]
 
 
 class Map:
@@ -107,7 +115,7 @@ class Map:
         self.add_location()
 
     def add_location(self):
-        self.map = [Location(**loc) for loc in loc_list]
+        self.map = [Location(**loc) for loc in LOC_LIST]
 
 
 current_location = "A"
@@ -119,13 +127,16 @@ player = Player('test', 10, 10, current_location)
 
 
 # input validator
-check_loc = player.move(loc_list)
+check_loc = player.move(LOC_LIST)
+
 while not check_loc:
     print("Invalid command/Location not in destination")
-    check_loc = player.move(loc_list)
+    check_loc = player.move(LOC_LIST)
 
 # prints current_loc
-for locs in loc_list:
+for locs in LOC_LIST:
     if check_loc == locs["name"]:
+
         new_location = Location(check_loc, locs["desc"], locs["dest"])
-        print(new_location.__str__())
+        destinations = new_location.dest_name(LOC_LIST)
+        print(new_location.print_location_info(destinations))
