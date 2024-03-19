@@ -2,48 +2,64 @@
 # from tkinter import Tk
 
 # class for player includes attributes: name, attack, and defence
-# TODO Finish player object
-class Player:
-    """docstring for Player"""
-    # _ (underscore) signals that a given attr is non-public and can only be accessed to class it was derived from
 
+class Character:
     def __init__(self, name, attack, defence, location):
         self._name = name
         self._attack = attack
         self._defence = defence
         self._location = location
-        self._inv = []
+
+
+# TODO Finish player object
+class Player(Character):
+    """docstring for Player"""
+
+    # _ (underscore) signals that a given attr is non-public and can only be accessed to class it was derived from
+
+    def __init__(self, name, attack, defence, location, inv=None):
+        super().__init__(name, attack, defence, location)
+        self._inv = inv
         # xp
         # luck
 
     # Getter: A method that allows you to access an attribute in a given class
     # Setter: A method that allows you to set or mutate the value of an attribute in a class
     @property
-    def name(self): return self._name
+    def name(self):
+        return self._name
 
     @name.setter
-    def name(self, newName): self._name = newName
+    def name(self, newName):
+        self._name = newName
 
     @property
-    def attack(self): return self._attack
+    def attack(self):
+        return self._attack
 
     @attack.setter
-    def attack(self, newAttack): self._attack = newAttack
+    def attack(self, newAttack):
+        self._attack = newAttack
 
     @property
-    def defence(self): return self._defence
+    def defence(self):
+        return self._defence
 
     @defence.setter
-    def defence(self, newDefence): self._defence = newDefence
+    def defence(self, newDefence):
+        self._defence = newDefence
 
     @property
-    def location(self): return self._location
+    def location(self):
+        return self._location
 
     @location.setter
-    def location(self, newLocation): self._location = newLocation
+    def location(self, newLocation):
+        self._location = newLocation
 
     @property
-    def inv(self): return self._inv
+    def inv(self):
+        return self._inv
 
     @inv.setter
     def inv(self, newInv):
@@ -75,19 +91,24 @@ class Location:
         self._items = items
 
     @property
-    def name(self): return self._name
+    def name(self):
+        return self._name
 
     @property
-    def desc(self): return self._desc
+    def desc(self):
+        return self._desc
 
     @property
-    def dest(self): return self._dest
+    def dest(self):
+        return self._dest
 
     @property
-    def items(self): return self._items
+    def items(self):
+        return self._items
 
     @property
-    def npc(self): return self._npc
+    def npc(self):
+        return self._npc
 
     @name.setter
     def name(self, value):
@@ -132,25 +153,24 @@ class Location:
             return f'You moved to {self._name}.\n{self._desc}.\nYou can move to {dest}.\n '
 
 
-class Npc:
-    def __init__(self, name, location):
-        self.name = name
-        self.location = location
-        self.dialogue = []
+class Npc(Character):
+    def __init__(self, name, attack, defence, location, dialogue=None):
+        super().__init__(name, attack, defence, location)
+        self.dialogue = dialogue
 
     def interact(self):
+        """ interact with npc """
+        pass
+
+    def print_dialogue(self):
+        """ prints dialogue """
         pass
 
 
-class Mages:
+class Enemy(Character):
+    def __init__(self, name, attack, defence, location):
+        super().__init__(name, attack, defence, location)
     pass
-
-
-# TODO create map
-LOC_LIST = [{"name": "A", "desc": "Room", "dest": ["B", "C", "D"], "npc": "Otylia", "items": ""},
-            {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "Hi", "items": ""},
-            {"name": "C", "desc": "Path 2", "dest": [], "npc": "", "items": ""},
-            {"name": "D", "desc": "Hello", "dest": [], "npc": "", "items": ""}]
 
 
 class Map:
@@ -177,14 +197,20 @@ class Map:
         self._npc = newNpc
 
 
+NPC_DIALOGUE = [{"name": "Test", "": ""}]
+
+# TODO create map
+LOC_LIST = [{"name": "A", "desc": "Room", "dest": ["B", "C", "D"], "npc": "Test", "items": ""},
+            {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "Hi", "items": ""},
+            {"name": "C", "desc": "Path 2", "dest": [], "npc": "", "items": ""},
+            {"name": "D", "desc": "Hello", "dest": [], "npc": "", "items": ""}]
+
 current_location = "A"
 
 m = Map([Location(**loc) for loc in LOC_LIST], [Npc(loc["npc"], loc["name"]) for loc in LOC_LIST])
 
-
 # test player
 player = Player('test', 10, 10, current_location)
-
 
 # input validator
 check_loc = player.move(LOC_LIST)
@@ -196,7 +222,6 @@ while not check_loc:
 # prints current_loc
 for locs in LOC_LIST:
     if check_loc == locs["name"]:
-
         new_location = Location(check_loc, locs["desc"], locs["dest"], locs["npc"], locs["items"])
         destinations = new_location.dest_name(LOC_LIST)
         print(new_location.print_location_info(destinations))
