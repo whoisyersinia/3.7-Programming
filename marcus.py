@@ -12,7 +12,7 @@ class Player:
         self._attack = attack
         self._defence = defence
         self._location = location
-        # spells
+        self._inv = []
         # xp
         # luck
 
@@ -22,25 +22,32 @@ class Player:
     def name(self): return self._name
 
     @name.setter
-    def name(self, newname): self._name = newname
+    def name(self, newName): self._name = newName
 
     @property
     def attack(self): return self._attack
 
     @attack.setter
-    def attack(self, newattack): self._attack = newattack
+    def attack(self, newAttack): self._attack = newAttack
 
     @property
     def defence(self): return self._defence
 
     @defence.setter
-    def defence(self, newdefence): self._defence = newdefence
+    def defence(self, newDefence): self._defence = newDefence
 
     @property
     def location(self): return self._location
 
     @location.setter
-    def location(self, newlocation): self._location = newlocation
+    def location(self, newLocation): self._location = newLocation
+
+    @property
+    def inv(self): return self._inv
+
+    @inv.setter
+    def inv(self, newInv):
+        self._inv = newInv
 
     def move(self, location_list):
         """
@@ -60,10 +67,12 @@ class Player:
 class Location:
     """docstring for Location"""
 
-    def __init__(self, name, desc, dest):
+    def __init__(self, name, desc, dest, npc, items):
         self._name = name
         self._desc = desc
         self._dest = dest
+        self._npc = npc
+        self._items = items
 
     @property
     def name(self): return self._name
@@ -73,6 +82,12 @@ class Location:
 
     @property
     def dest(self): return self._dest
+
+    @property
+    def items(self): return self._items
+
+    @property
+    def npc(self): return self._npc
 
     @name.setter
     def name(self, value):
@@ -86,6 +101,20 @@ class Location:
     def dest(self, value):
         self._dest = value
 
+    @npc.setter
+    def npc(self, value):
+        self._npc = value
+
+    @items.setter
+    def items(self, value):
+        self._items = value
+
+    # check if current location has a npc
+    def check_npc(self):
+        if self._npc:
+            return True
+        return False
+
     def dest_name(self, map_dest):
         dest_name_list = []
         for dest in map_dest:
@@ -97,29 +126,60 @@ class Location:
     def print_location_info(self, dest_list):
         """prints the location name, desc, and possible dest"""
         dest = ", ".join(dest_list)
-        return f'You moved to {self._name}.\n{self._desc}.\nYou can move to {dest}.'
+        if self.check_npc():
+            return f'You moved to {self._name}.\n{self._desc}.\nYou can move to {dest}.\nSomeone is waving at you!'
+        else:
+            return f'You moved to {self._name}.\n{self._desc}.\nYou can move to {dest}.\n '
+
+
+class Npc:
+    def __init__(self, name, location):
+        self.name = name
+        self.location = location
+        self.dialogue = []
+
+    def interact(self):
+        pass
+
+
+class Mages:
+    pass
 
 
 # TODO create map
-LOC_LIST = [{"name": "A", "desc": "Room", "dest": ["B", "C", "D"]},
-            {"name": "B", "desc": "Path", "dest": ["C", "D"]},
-            {"name": "C", "desc": "Path 2", "dest": []},
-            {"name": "D", "desc": "Hello", "dest": []}]
+LOC_LIST = [{"name": "A", "desc": "Room", "dest": ["B", "C", "D"], "npc": "Otylia", "items": ""},
+            {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "Hi", "items": ""},
+            {"name": "C", "desc": "Path 2", "dest": [], "npc": "", "items": ""},
+            {"name": "D", "desc": "Hello", "dest": [], "npc": "", "items": ""}]
 
 
 class Map:
     """docstring for Map"""
 
-    def __init__(self):
-        self.map = []
-        self.add_location()
+    def __init__(self, maps, npc):
+        self._map = maps
+        self._npc = npc
 
-    def add_location(self):
-        self.map = [Location(**loc) for loc in LOC_LIST]
+    @property
+    def map(self):
+        return self._map
+
+    @property
+    def npc(self):
+        return self._npc
+
+    @map.setter
+    def map(self, newMap):
+        self._map = newMap
+
+    @npc.setter
+    def npc(self, newNpc):
+        self._npc = newNpc
 
 
 current_location = "A"
-m = Map()
+
+m = Map([Location(**loc) for loc in LOC_LIST], [Npc(loc["npc"], loc["name"]) for loc in LOC_LIST])
 
 
 # test player
@@ -137,6 +197,6 @@ while not check_loc:
 for locs in LOC_LIST:
     if check_loc == locs["name"]:
 
-        new_location = Location(check_loc, locs["desc"], locs["dest"])
+        new_location = Location(check_loc, locs["desc"], locs["dest"], locs["npc"], locs["items"])
         destinations = new_location.dest_name(LOC_LIST)
         print(new_location.print_location_info(destinations))
