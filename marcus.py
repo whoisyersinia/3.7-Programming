@@ -65,7 +65,22 @@ class Player(Character):
     def inv(self, newInv):
         self._inv = newInv
 
-    def move(self, location_list):
+    def move(self):
+        # input validator
+        check_loc = self.move_validator(LOC_LIST)
+
+        while not check_loc:
+            print("Invalid command/Location not in destination")
+            check_loc = self.move_validator(LOC_LIST)
+
+        # prints current_loc
+        for locs in LOC_LIST:
+            if check_loc == locs["name"]:
+                new_location = Location(check_loc, locs["desc"], locs["dest"], locs["npc"], locs["items"])
+                destinations = new_location.dest_name(LOC_LIST)
+                print(new_location.print_location_info(destinations))
+
+    def move_validator(self, location_list):
         """
             moves the player by checking if the dest is a valid dest
         """
@@ -78,6 +93,13 @@ class Player(Character):
                     return dest
 
         return False
+
+
+class Enemy(Character):
+    def __init__(self, name, attack, defence, location):
+        super().__init__(name, attack, defence, location)
+
+    pass
 
 
 class Location:
@@ -148,29 +170,25 @@ class Location:
         """prints the location name, desc, and possible dest"""
         dest = ", ".join(dest_list)
         if self.check_npc():
-            return f'You moved to {self._name}.\n{self._desc}.\nYou can move to {dest}.\nSomeone is waving at you!'
+            return (f'You moved to {self._name}.\n{self._desc}.\nYou can move to {dest}.\nSomeone is waving at you!\n'
+                    f'(Talk)')
         else:
             return f'You moved to {self._name}.\n{self._desc}.\nYou can move to {dest}.\n '
 
 
-class Npc(Character):
-    def __init__(self, name, attack, defence, location, dialogue=None):
-        super().__init__(name, attack, defence, location)
+class Npc:
+    def __init__(self, name, location, dialogue=None):
+        self.name = name
+        self.location = location
         self.dialogue = dialogue
 
     def interact(self):
-        """ interact with npc """
+        return self.name
         pass
 
     def print_dialogue(self):
         """ prints dialogue """
         pass
-
-
-class Enemy(Character):
-    def __init__(self, name, attack, defence, location):
-        super().__init__(name, attack, defence, location)
-    pass
 
 
 class Map:
@@ -207,21 +225,37 @@ LOC_LIST = [{"name": "A", "desc": "Room", "dest": ["B", "C", "D"], "npc": "Test"
 
 current_location = "A"
 
-m = Map([Location(**loc) for loc in LOC_LIST], [Npc(loc["npc"], loc["name"]) for loc in LOC_LIST])
+m = Map([Location(**loc) for loc in LOC_LIST], [Npc(loc["npc"], loc["name"], ) for loc in LOC_LIST])
 
-# test player
-player = Player('test', 10, 10, current_location)
 
-# input validator
-check_loc = player.move(LOC_LIST)
+def action_validator():
+    """checks if action is valid and returns the action or False"""
+    valid_inputs = ["move", "m"]
 
-while not check_loc:
-    print("Invalid command/Location not in destination")
-    check_loc = player.move(LOC_LIST)
+    print("What are you going do?")
+    player_input = input("> ").lower()
 
-# prints current_loc
-for locs in LOC_LIST:
-    if check_loc == locs["name"]:
-        new_location = Location(check_loc, locs["desc"], locs["dest"], locs["npc"], locs["items"])
-        destinations = new_location.dest_name(LOC_LIST)
-        print(new_location.print_location_info(destinations))
+    while player_input not in valid_inputs:
+        print("Input not recognised. Try again! Type 'Help' if you need all the valid actions!")
+        print("What are you going do?")
+        player_input = input("> ").lower()
+
+    return player_input
+
+
+def return_action(player, action):
+    """returns the action """
+    action_dict = {"move": ["move", "m"]}
+    if action in action_dict["move"]:
+        player.move()
+
+
+def main():
+    """ main game loop """
+    # test player
+    player = Player('test', 10, 10, current_location)
+    action = action_validator()
+    return_action(player, action)
+
+
+main()
