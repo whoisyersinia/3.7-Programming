@@ -1,6 +1,24 @@
-# import modules
+"""
+An RPG text-adventure game written in Python with a GUI using Tkinter.
+Made for the 3.7 Assessment Standard in NCEA Level 3.
+Copyright (c)
+
+Github: https://github.com/whoisyersinia/3.7-Programming
+Author: Marcus Demafeliz
+Date: 30 March 2024
+"""
+
 import tkinter as tk
+from tkinter import *
 from tkinter import ttk
+
+NPC_DIALOGUE = [{"name": "Test", "": ""}]
+
+# TODO create map
+LOC_LIST = [{"name": "A", "desc": "Room", "dest": ["B", "C", "D"], "npc": "Test", "items": ""},
+            {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "Hi", "items": ""},
+            {"name": "C", "desc": "Path 2", "dest": [], "npc": "", "items": ""},
+            {"name": "D", "desc": "Hello", "dest": [], "npc": "", "items": ""}]
 
 
 class Character:
@@ -14,8 +32,9 @@ class Character:
         _location (str): The current location of the character.
     """
 
-    def __init__(self, name, attack, defence, location):
+    def __init__(self, name, health, attack, defence, location):
         self._name = name
+        self._health = health
         self._attack = attack
         self._defence = defence
         self._location = location
@@ -40,55 +59,65 @@ class Player(Character):
         print_help(): Prints the available commands and instructions.
     """
 
-    # _ (underscore) signals that a given attr is non-public and can only be accessed to class it was derived from
-
-    def __init__(self, name, attack, defence, location, inv=None):
-        super().__init__(name, attack, defence, location)
+    def __init__(self, name, health, attack, defence, location, inv=None):
+        super().__init__(name, health, attack, defence, location)
         self._inv = inv
         # xp
         # luck
 
-    # Getter: A method that allows you to access an attribute in a given class
-    # Setter: A method that allows you to set or mutate the value of an attribute in a class
     @property
     def name(self):
         return self._name
 
     @name.setter
-    def name(self, newName):
-        self._name = newName
+    def name(self, new_name):
+        self._name = new_name
+
+    @property
+    def health(self):
+        return self._health
+
+    @health.setter
+    def health(self, new_health):
+        self._health = new_health
 
     @property
     def attack(self):
         return self._attack
 
     @attack.setter
-    def attack(self, newAttack):
-        self._attack = newAttack
+    def attack(self, new_attack):
+        self._attack = new_attack
 
     @property
     def defence(self):
         return self._defence
 
     @defence.setter
-    def defence(self, newDefence):
-        self._defence = newDefence
+    def defence(self, new_defence):
+        self._defence = new_defence
 
     @property
     def location(self):
         return self._location
 
     @location.setter
-    def location(self, newLocation):
-        self._location = newLocation
+    def location(self, new_location):
+        self._location = new_location
 
     @property
     def inv(self):
         return self._inv
 
     @inv.setter
-    def inv(self, newInv):
-        self._inv = newInv
+    def inv(self, new_inv):
+        self._inv = new_inv
+
+    def get_loc_info(self):
+        for loc in LOC_LIST:
+            if loc["name"] == self._location:
+                location = Location(**loc)
+                return location
 
     # action methods
     def move(self):
@@ -133,8 +162,8 @@ class Player(Character):
 
 
 class Enemy(Character):
-    def __init__(self, name, attack, defence, location):
-        super().__init__(name, attack, defence, location)
+    def __init__(self, name, health, attack, defence, location):
+        super().__init__(name, health, attack, defence, location)
 
     pass
 
@@ -306,21 +335,13 @@ class Map:
         self._npc = newNpc
 
 
-NPC_DIALOGUE = [{"name": "Test", "": ""}]
-
-# TODO create map
-LOC_LIST = [{"name": "A", "desc": "Room", "dest": ["B", "C", "D"], "npc": "Test", "items": ""},
-            {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "Hi", "items": ""},
-            {"name": "C", "desc": "Path 2", "dest": [], "npc": "", "items": ""},
-            {"name": "D", "desc": "Hello", "dest": [], "npc": "", "items": ""}]
-
 current_location = "A"
 
 m = Map([Location(**loc) for loc in LOC_LIST], [Npc(loc["npc"], loc["name"], ) for loc in LOC_LIST])
 
 
 def action_validator():
-    """checks if action is valid and returns the action or False"""
+    """ Checks if action is valid and returns the action or False """
     valid_inputs = ["move", "m", "help", "m"]
 
     print("What are you going do?")
@@ -335,7 +356,7 @@ def action_validator():
 
 
 def return_action(player, action):
-    """returns the action """
+    """ Returns the action """
     action_dict = {"move": ["move", "m"], "help": ["help", "m"]}
     if action in action_dict["move"]:
         player.move()
@@ -345,51 +366,74 @@ def return_action(player, action):
 
 
 class App(tk.Tk):
-    """ Main application gui"""
+    """ Main application gui """
 
-    def __init__(self):
+    def __init__(self, player, location):
         super().__init__()
         self.title("Hello World!")
         self.geometry("600x600")
-
-        self.menu = Menu(self)
-        self.mainloop()
-
-        # self.label = ttk.Label(self, text="")
-        # self.label.pack()
-    # def update_label(self, newText):
-    #     self.label["text"] = newText
+        self.label = ttk.Label(self, text=f"Hello, {player.name}!")
+        self.label.pack()
+        self.menu = Menu(self, player, location)
 
 
 class Menu(ttk.Frame):
-    def __init__(self, parent):
+    """main menu for player interaction"""
+
+    def __init__(self, parent, player, location):
         super().__init__(parent)
-        ttk.Label(self, background='red')
 
+        self.location = location
+        self.player = player
+
+        self.label_location = tk.Label(self, text=f"Location: {self.player.location}", font="Helvetica", fg='#FF0000')
+        self.label_location.pack()
+
+        self.info_location = tk.Label(self, text=f"You are in {self.location.desc}", font="Helvetica")
+        self.info_location.pack()
+
+        self.dest = self.location.dest_name(LOC_LIST)
+        self.dests = tk.Label(self, text=f"{self.location.print_location_info(self.dest)}", font="Helvetica")
+        self.dests.pack()
+
+        self.health = tk.Label(self, text=f"You have {self.player.health} HP", font="Helvetica")
+        self.health.pack()
+
+        self.create_move_button()
         self.pack()
-    #     self.create_widgets()
-    #
-    # def create_widgets(self):
-    #     button_1 = ttk.Button(self, text="Button 1")
-    #
-    #     entry = ttk.Entry(self)
+
+    def create_move_button(self):
+        """creates the move button"""
+        move_button = ttk.Button(self, text="Move", command=self.move_button)
+        move_button.pack()
+
+    def move_button(self):
+        """moves the player"""
+        self.player.location = "B"
+        self.location = self.player.get_loc_info()
+        self.update_widgets()
+
+    def update_widgets(self):
+        """update widgets"""
+        self.label_location.config(text=f"Location: {self.player.location}")
+        self.info_location.config(text=f"You are in {self.location.desc}")
+        self.dest = self.location.dest_name(LOC_LIST)
+        self.dests.config(text=f"{self.location.print_location_info(self.dest)}")
 
 
-App()
+def main():
+    """ Main game loop """
+    # test player
+    if __name__ == "__main__":
+        player = Player('test', 100, 10, 10, current_location)
 
-# def main():
-#     """ main game loop """
-#     # test player
-#     if __name__ == "__main__":
-#
-#         player = Player('test', 10, 10, current_location)
-#
-#         App()
-#
-#         # while True:
-#         #     action = action_validator()
-#         #     return_action(player, action)
-#         #     app.update_label(player.location)
-#
-#
-# main()
+        app = App(player, player.get_loc_info())
+
+        app.mainloop()
+
+        while True:
+            action = action_validator()
+            return_action(player, action)
+
+
+main()
