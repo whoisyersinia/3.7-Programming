@@ -9,16 +9,18 @@ Date: 30 March 2024
 """
 
 import tkinter as tk
-from tkinter import *
+import ttkbootstrap as tb
 from tkinter import ttk
 
 NPC_DIALOGUE = [{"name": "Test", "": ""}]
 
 # TODO create map
-LOC_LIST = [{"name": "A", "desc": "Room", "dest": ["B", "C", "D"], "npc": "Test", "items": ""},
+LOC_LIST = [{"name": "A", "desc": "Start", "dest": ["B", "C", "D"], "npc": "Test", "items": ""},
             {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "Hi", "items": ""},
-            {"name": "C", "desc": "Path 2", "dest": [], "npc": "", "items": ""},
-            {"name": "D", "desc": "Hello", "dest": [], "npc": "", "items": ""}]
+            {"name": "C", "desc": "Path 2", "dest": ["D"], "npc": "", "items": ""},
+            {"name": "D", "desc": "End", "dest": ["A"], "npc": "", "items": ""}]
+
+current_location = "A"
 
 
 class Character:
@@ -119,42 +121,6 @@ class Player(Character):
                 location = Location(**loc)
                 return location
 
-    # action methods
-    def move(self):
-        # input validator
-        check_loc = self.move_validator(LOC_LIST)
-
-        if check_loc == "exit":
-            print("go back")
-
-        while not check_loc:
-            print("Invalid command/Location not in destination")
-            check_loc = self.move_validator(LOC_LIST)
-
-        # prints current_loc
-        for locs in LOC_LIST:
-            if check_loc == locs["name"]:
-                new_location = Location(check_loc, locs["desc"], locs["dest"], locs["npc"], locs["items"])
-                destinations = new_location.dest_name(LOC_LIST)
-                print(new_location.print_location_info(destinations))
-
-    def move_validator(self, location_list):
-        """
-            moves the player by checking if the dest is a valid dest
-        """
-        dest = str(input("Where would you like to move? (Type 'Exit' or 'e' to go back)\n")).upper()
-
-        if dest in ["EXIT", "E"]:
-            return "exit"
-
-        for loc in location_list:
-            if loc["name"] == self._location:
-                if dest in loc["dest"]:
-                    self._location = dest
-                    return dest
-
-        return False
-
     @staticmethod
     def print_help():
         return print(f"To move: move or m\n"
@@ -243,36 +209,41 @@ class Location:
         return False
 
     def dest_name(self, map_dest):
-        """Get the names of the destinations based on the given map.
+        """Maps the desc of the destinations to the id (name) based on the given map.
 
         Args:
             map_dest (list): A list of destination dictionaries.
 
         Returns:
-            list: A list of destination names.
+            dict: A dict of destination names mapped to its id.
         """
-        dest_name_list = []
+        dest_dict = dict()
         for dest in map_dest:
             if dest["name"] in self._dest:
-                dest_name_list.append(dest["desc"])
+                if dest["name"] in dest_dict:
+                    dest_dict[dest["name"]].append(dest["desc"])
+                else:
+                    dest_dict[dest["name"]] = dest["desc"]
 
-        return dest_name_list
+        return dest_dict
 
-    def print_location_info(self, dest_list):
+    def print_location_info(self, dest_dict):
         """Print the location information, including name, description, and possible destinations.
 
         Args:
-            dest_list (list): A list of destination names.
+            dest_dict (dict): A dict of destinations.
 
         Returns:
             str: The formatted location information.
         """
-        dest = ", ".join(dest_list)
+        dest_list_names = [dest_desc for dest_desc in dest_dict.values()]
+
+        dest = ", ".join(dest_list_names)
         if self.check_npc():
-            return (f'You moved to {self._name}.\n{self._desc}.\nYou can move to {dest}.\nSomeone is waving at you!\n'
+            return (f'You moved to {self._desc}.\nYou can move to {dest}.\nSomeone is waving at you!\n'
                     f'(Talk)')
         else:
-            return f'You moved to {self._name}.\n{self._desc}.\nYou can move to {dest}.\n '
+            return f'You moved to {self._desc}.\nYou can move to {dest}.\n '
 
 
 class Npc:
@@ -335,46 +306,20 @@ class Map:
         self._npc = newNpc
 
 
-current_location = "A"
-
-m = Map([Location(**loc) for loc in LOC_LIST], [Npc(loc["npc"], loc["name"], ) for loc in LOC_LIST])
-
-
-def action_validator():
-    """ Checks if action is valid and returns the action or False """
-    valid_inputs = ["move", "m", "help", "m"]
-
-    print("What are you going do?")
-    player_input = input("> ").lower()
-
-    while player_input not in valid_inputs:
-        print("Input not recognised. Try again! Type 'Help' if you need all the valid actions!")
-        print("\nWhat are you going do?")
-        player_input = input("> ").lower()
-
-    return player_input
-
-
-def return_action(player, action):
-    """ Returns the action """
-    action_dict = {"move": ["move", "m"], "help": ["help", "m"]}
-    if action in action_dict["move"]:
-        player.move()
-
-    elif action in action_dict["help"]:
-        player.print_help()
-
-
 class App(tk.Tk):
     """ Main application gui """
 
     def __init__(self, player, location):
         super().__init__()
+        self.style = tb.Style(theme="darkly")
         self.title("Hello World!")
         self.geometry("600x600")
-        self.label = ttk.Label(self, text=f"Hello, {player.name}!")
-        self.label.pack()
         self.menu = Menu(self, player, location)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
+        self.rowconfigure(2, weight=1)
+        self.rowconfigure(3, weight=1)
 
 
 class Menu(ttk.Frame):
@@ -387,53 +332,65 @@ class Menu(ttk.Frame):
         self.player = player
 
         self.label_location = tk.Label(self, text=f"Location: {self.player.location}", font="Helvetica", fg='#FF0000')
-        self.label_location.pack()
+        self.label_location.grid(row=0, column=0, sticky="ew", columnspan=3)
 
         self.info_location = tk.Label(self, text=f"You are in {self.location.desc}", font="Helvetica")
-        self.info_location.pack()
+        self.info_location.grid(row=1, column=0, sticky="ew", columnspan=3)
+
+        self.info = ttk.Label(self, text="Nothing currently happening...", font="Helvetica", style="info.TLabel",
+                              background="black", padding=5, justify="center", borderwidth=2, relief="solid")
+        self.info.grid(row=2, column=0, pady=(10, 20), columnspan=3)
 
         self.dest = self.location.dest_name(LOC_LIST)
-        self.dests = tk.Label(self, text=f"{self.location.print_location_info(self.dest)}", font="Helvetica")
-        self.dests.pack()
 
-        self.health = tk.Label(self, text=f"You have {self.player.health} HP", font="Helvetica")
-        self.health.pack()
+        self.buttons = []
+        self.move_header = ttk.Label(self, text="Where to?", font="Helvetica", style="info.TLabel")
+        self.move_header.grid(row=3, column=0, pady=(0, 5), columnspan=3)
+        i = 0
+        for dest_id, dest_desc in self.dest.items():
+            self.move_button = ttk.Button(self, style="primary.Outline.TButton", text=f"Move to {dest_desc}",
+                                          command=lambda dest=dest_id: self.move(dest))
+            self.move_button.grid(row=4, ipadx=10, ipady=2, padx=5, column=0 + i, sticky="nsew")
+            i += 1
+            self.buttons.append(self.move_button)
 
-        self.create_move_button()
-        self.pack()
+        self.grid()
 
-    def create_move_button(self):
-        """creates the move button"""
-        move_button = ttk.Button(self, text="Move", command=self.move_button)
-        move_button.pack()
-
-    def move_button(self):
+    def move(self, dest):
         """moves the player"""
-        self.player.location = "B"
+        self.player.location = dest
         self.location = self.player.get_loc_info()
+        self.info.config(text=f"{self.location.print_location_info(self.dest)}")
+        self.info.grid(row=2)
         self.update_widgets()
 
     def update_widgets(self):
         """update widgets"""
         self.label_location.config(text=f"Location: {self.player.location}")
         self.info_location.config(text=f"You are in {self.location.desc}")
+        for b in self.buttons:
+            b.destroy()
+        self.buttons.clear()
+
         self.dest = self.location.dest_name(LOC_LIST)
-        self.dests.config(text=f"{self.location.print_location_info(self.dest)}")
+        self.info.config(text=f"{self.location.print_location_info(self.dest)}")
+        i = 0
+        for dest_id, dest_desc in self.dest.items():
+            self.move_button = ttk.Button(self, style="primary.Outline.TButton", text=f"Move to {dest_desc}",
+                                          command=lambda dest=dest_id: self.move(dest))
+            self.move_button.grid(row=4, ipadx=10, ipady=2, padx=5, column=0 + i, sticky="nsew")
+            i += 1
+            self.buttons.append(self.move_button)
 
 
 def main():
     """ Main game loop """
     # test player
-    if __name__ == "__main__":
-        player = Player('test', 100, 10, 10, current_location)
+    player = Player('test', 100, 10, 10, current_location)
 
-        app = App(player, player.get_loc_info())
-
-        app.mainloop()
-
-        while True:
-            action = action_validator()
-            return_action(player, action)
+    app = App(player, player.get_loc_info())
+    app.mainloop()
 
 
-main()
+if __name__ == '__main__':
+    main()
