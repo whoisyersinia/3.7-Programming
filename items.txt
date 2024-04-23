@@ -1,0 +1,2 @@
+1,Wooden Sword,A plain looking sword,0,5
+2,Rustic Iron Sword,A rustic sword - nothing less,2,8
