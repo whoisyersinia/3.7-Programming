@@ -11,15 +11,16 @@ Date: 30 March 2024
 import tkinter as tk
 import ttkbootstrap as tb
 from tkinter import ttk
+from itertools import islice, chain
 
 # from pprint import pprint
 
 NPC_DIALOGUE = [{"name": "Test", "": ""}]
 
 # TODO finish map
-LOC_LIST = [{"name": "A", "desc": "Start", "dest": ["B", "C", "D"], "npc": "Test", "item": [1]},
-            {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "Hi", "item": ""},
-            {"name": "C", "desc": "Path 2", "dest": ["D"], "npc": "", "item": ""},
+LOC_LIST = [{"name": "A", "desc": "Start", "dest": ["B", "C", "D"], "npc": "Test", "item": [2, 1]},
+            {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "Hi", "item": [2]},
+            {"name": "C", "desc": "Path 2", "dest": ["D"], "npc": "", "item": [1]},
             {"name": "D", "desc": "End", "dest": ["A"], "npc": "", "item": ""}]
 
 
@@ -69,6 +70,7 @@ class Player(Character):
         self._armour = armour
         self._skills = skills
         self.max_inv_size = 6
+        self._max_health = 100
         # xp
         # luck
 
@@ -152,6 +154,14 @@ class Player(Character):
     def skills(self, new_skills):
         self._skills = new_skills
 
+    @property
+    def max_health(self):
+        return self._max_health
+
+    @max_health.setter
+    def max_health(self, new_max_health):
+        self._max_health = new_max_health
+
     # def get_skills(self, skill):
     #     """get skill objects"""
     #     skill_list = []
@@ -171,21 +181,46 @@ class Player(Character):
 
     def check_max_inv(self):
         """checks if player is over the max inventory size"""
-        if len(self._inv) > self.max_inv_size:
-            print('max')
+        consumable_list = [item.name for item in self._inv if isinstance(item, Consumable)]
+        other_item_list = [item.name for item in self._inv if not isinstance(item, Consumable)]
+        consumable_list = set(consumable_list)
+        inv_size = len(consumable_list) + len(other_item_list)
+        if inv_size > self.max_inv_size:
             return True
         else:
             return False
 
-    def take_item(self, location):
+    def take_item(self, item, location):
         """take item and add to player inventory"""
         if not self.check_max_inv():
-            add_item = location.item[0]
+            items_in_loc = location.item
+            if item in items_in_loc:
+                item = item
+            add_item = item
             self._inv.append(add_item)
             print(f"Successfully added {add_item.name} to inventory!")
-            location.item.pop(0)
+            location.item.remove(item)
             return add_item.name
         return False
+
+    def heal(self, healing):
+        """heals the player based on certain amount of health prevent overhealing"""
+        if self._health == self.max_health:
+            print("Already max health!")
+            return False
+        old_health = self._health
+        self._health += healing
+        if self._health > self.max_health:
+            self.health = self.max_health
+        print(f"Healed {self._health - old_health} health!")
+
+    def use_item(self, item):
+        """use item in player inv - only consumable type"""
+        print(f"Used {item.name}")
+        self._attack += item.attack
+        self._defence += item.attack
+        self.heal(item.health)
+        self._inv.remove(item)
 
     def unequip_item(self, item):
         """unequip item from inventory"""
@@ -247,11 +282,28 @@ class Item:
         self.value = int(value)
 
     def get_item_type(self):
+        """return the item type"""
         if isinstance(self, Weapon):
             return "weapon"
         # elif isinstance(self, Armour):
         #     return "armour"
-        #
+        elif isinstance(self, Consumable):
+            return "consumable"
+
+
+class Consumable(Item):
+    def __init__(self, item_id, name, desc, value, attack, defence, health):
+        super().__init__(item_id, name, desc, value)
+        self.attack = int(attack)
+        self.defence = int(defence)
+        self.health = int(health)
+
+    @classmethod
+    def generate_from_file(cls, in_file):
+        """ generate items from items.txt file """
+        with open(in_file, 'r') as consumables:
+            for consumable in islice(consumables, 2, 3):
+                yield Consumable(*consumable.strip().split(","))
 
 
 class Weapon(Item):
@@ -263,8 +315,9 @@ class Weapon(Item):
 
     @classmethod
     def generate_from_file(cls, in_file):
-        with open(in_file) as weapons:
-            for weapon in weapons:
+        """ generate items from items.txt file """
+        with open(in_file, 'r') as weapons:
+            for weapon in islice(weapons, 0, 2):
                 yield Weapon(*weapon.strip().split(","))
 
 
@@ -336,13 +389,13 @@ class Location:
     def item(self):
         del self._item
 
-    def link_item(self, items):
+    def link_item(self, all_items):
         """link item id to item object"""
         new_item_list = []
-
-        for item in items:
-            if item.id in self._item:
-                new_item_list.append(item)
+        for i in range(len(all_items)):
+            for item_id in self._item:
+                if item_id == all_items[i].id:
+                    new_item_list.append(all_items[i])
 
         self._item = new_item_list
 
@@ -363,7 +416,7 @@ class Location:
             bool: True if the location has an item, False otherwise.
         """
         if self._item:
-            return True
+            return len(self._item)
         return False
 
     def dest_name(self, locations):
@@ -488,7 +541,7 @@ class App(tk.Tk):
         self._frame = None
         self.statusbar = None
 
-        self.switch_frame(Inventory)
+        self.switch_frame(Menu)
 
     def switch_frame(self, frame_class):
         """Destroys current frame and replaces it with a new one."""
@@ -519,12 +572,15 @@ class Inventory(ttk.Frame):
         self.item_name = None
         self.item_desc = None
         self.item_attack = None
+        self.item_health = None
         self.equip_button = None
         self.unequip_button = None
+        self.use_button = None
         self.item_value = None
         self.no_item_msg = None
         self.destroy_item_button = None
         self.item_widget = []
+        self.cons_list = [item.name for item in self.player.inv if isinstance(item, Consumable)]
         self.create_widgets()
         self.create_item_widget()
 
@@ -561,9 +617,10 @@ class Inventory(ttk.Frame):
         inventory.grid(row=11, column=0, columnspan=3, pady=(0, 5))
 
     def create_item_widget(self):
+        """creates the item widgets"""
         row_num = 0
         col_num = 0
-        item_num = 0
+        duplicate_consumables_widgets = []
 
         for item in self.player.inv:
             if col_num == 0:
@@ -572,53 +629,100 @@ class Inventory(ttk.Frame):
                 row_num += 5
                 col_num = 0
 
-            self.item_name = ttk.Label(self, text=f"{item.name}", style="success.TLabel", justify="left",
-                                       font="Helvetica 15")
-            self.item_name.grid(row=12 + row_num, column=col_num)
-            self.item_widget.append(self.item_name)
-
-            self.item_desc = ttk.Label(self, text=f"{item.desc}", style="primary.TLabel", justify="left",
-                                       font="Helvetica 10")
-            self.item_desc.grid(row=13 + row_num, column=col_num)
-            self.item_widget.append(self.item_desc)
-
             if item.get_item_type() == "weapon":
-                self.item_attack = ttk.Label(self, text=f"Attack +{item.attack}", style="primary.TLabel",
-                                             justify="left", font="Helvetica 15")
-                self.item_attack.grid(row=14 + row_num, column=col_num)
-                self.item_widget.append(self.item_attack)
+                self.create_weapon_item_widget(item, row_num, col_num)
+                col_num += 1
 
-                if self.player.weapon == item:
-                    self.unequip_button = ttk.Button(self, text="Unequip", style="danger.Outline.TButton", width=10,
-                                                     command=lambda items=item: self.unequip_item(items))
-                    self.unequip_button.grid(row=16 + row_num, column=col_num, pady=(0, 50))
-                    self.item_widget.append(self.unequip_button)
-                elif not self.player.weapon:
-                    self.equip_button = ttk.Button(self, text="Equip", style="success.Outline.TButton", width=4,
-                                                   command=lambda items=item:
-                                                   self.equip_item(items))
-                    self.equip_button.grid(row=16 + row_num, column=col_num, pady=(0, 50))
-                    self.item_widget.append(self.equip_button)
-                else:
-                    self.destroy_item_button = ttk.Button(self, text="Remove", style="danger.TButton", width=6,
-                                                          command=lambda items=item: self.remove_item(items))
-                    self.destroy_item_button.grid(row=16 + row_num, column=col_num, pady=(0, 50))
-                    self.item_widget.append(self.destroy_item_button)
+            elif item.get_item_type() == "armour":
+                pass
 
-            self.item_value = ttk.Label(self, text=f"Sell for: {item.value} coins", style="primary.TLabel",
-                                        justify="left", font="Helvetica 15")
-            self.item_value.grid(row=15 + row_num, column=col_num)
-            self.item_widget.append(self.item_value)
-            col_num += 1
-            item_num += 1
+            elif item.get_item_type() == "consumable":
+                uses = self.cons_list.count(item.name)
+                if item.name not in duplicate_consumables_widgets:
+                    if uses > 1:
+                        self.create_consumable_item_widget(item, row_num, col_num, False, uses)
+                        duplicate_consumables_widgets.append(item.name)
+                        col_num += 1
+                    else:
+                        self.create_consumable_item_widget(item, row_num, col_num, True, uses)
+                        col_num += 1
 
         if not self.player.inv:
             self.no_item_msg = ttk.Label(self, text="You have no items", style="info.TLabel", font="Apple 15 bold")
             self.no_item_msg.grid(row=12, column=0, columnspan=3, pady=(0, 300))
 
+    def create_item_info_widget(self, item, row_num, col_num):
+        """ create the widget for the item's basic info """
+        self.item_name = ttk.Label(self, text=f"{item.name}", style="success.TLabel", justify="left",
+                                   font="Helvetica 18")
+        self.item_name.grid(row=12 + row_num, column=col_num)
+        self.item_widget.append(self.item_name)
+
+        self.item_desc = ttk.Label(self, text=f"{item.desc}", style="info.TLabel", justify="left",
+                                   font="Helvetica 12", )
+        self.item_desc.grid(row=13 + row_num, column=col_num)
+        self.item_widget.append(self.item_desc)
+        self.item_value = ttk.Label(self, text=f"Sell for: {item.value} coins", style="primary.TLabel",
+                                    justify="left", font="Helvetica 12")
+        self.item_value.grid(row=15 + row_num, column=col_num)
+        self.item_widget.append(self.item_value)
+
+    def create_consumable_item_widget(self, item, row_num, col_num, one_use, uses):
+        """create widgets for consumable items"""
+        self.create_item_info_widget(item, row_num, col_num)
+        if not one_use:
+            self.use_button = ttk.Button(self, text=f"Use - {uses}", style="info.TButton", width=10,
+                                         command=lambda items=item: self.use_item(items, uses))
+        else:
+            self.use_button = ttk.Button(self, text="Use", style="info.TButton", width=10,
+                                         command=lambda items=item: self.use_item(items, uses))
+
+        self.use_button.grid(row=16 + row_num, column=col_num, pady=(0, 50))
+        self.item_widget.append(self.use_button)
+        self.check_max_health(item)
+
+    def check_max_health(self, item):
+        """checks if the player is at max health and disable use button if true"""
+        if item.health > 0 and self.player.health >= self.player.max_health:
+            self.use_button.config(text=f"Already at max HP!", state="disabled", width=13)
+
+    def create_weapon_item_widget(self, item, row_num, col_num):
+        self.create_item_info_widget(item, row_num, col_num)
+        if self.player.weapon == item:
+            self.unequip_button = ttk.Button(self, text="Unequip", style="danger.Outline.TButton", width=10,
+                                             command=lambda items=item: self.unequip_item(items))
+            self.unequip_button.grid(row=16 + row_num, column=col_num, pady=(0, 50))
+            self.item_widget.append(self.unequip_button)
+        elif not self.player.weapon:
+            self.equip_button = ttk.Button(self, text="Equip", style="success.Outline.TButton", width=4,
+                                           command=lambda items=item:
+                                           self.equip_item(items))
+            self.equip_button.grid(row=16 + row_num, column=col_num, pady=(0, 50))
+            self.item_widget.append(self.equip_button)
+        else:
+            self.destroy_item_button = ttk.Button(self, text="Remove", style="danger.TButton", width=6,
+                                                  command=lambda items=item: self.remove_item(items))
+            self.destroy_item_button.grid(row=16 + row_num, column=col_num, pady=(0, 50))
+            self.item_widget.append(self.destroy_item_button)
+
     def destroy_item_widget(self):
+        """destroy widgets item widgets"""
         for widget in self.item_widget:
             widget.destroy()
+
+    def use_item(self, item, uses):
+        """use item and configure the widgets"""
+        self.player.use_item(item)
+        if uses < 1:
+            self.destroy_item_widget()
+            self.create_item_widget()
+        else:
+            self.cons_list.remove(item.name)
+            uses = self.cons_list.count(item)
+            self.use_button.config(text=f"Use - {uses}")
+            self.destroy_item_widget()
+            self.create_item_widget()
+        self.update_widgets()
 
     def remove_item(self, item):
         """removes item from inv"""
@@ -642,13 +746,14 @@ class Inventory(ttk.Frame):
         self.update_widgets()
 
     def update_widgets(self):
+        """updates the current state of widgets"""
         self.stats.config(text=f"Level: ... | {self.player.health} HP | Attack: {self.player.attack} | "
                                f"Defence: {self.player.defence} | {self.player.coins} coins.")
         self.skills.config(text=f"Skills: {self.player.skills}")
         if self.player.weapon:
             self.equipped_weapon.config(text=f"Weapon: {self.player.weapon.name}")
         else:
-            self.equipped_weapon.config(text=f"Weapon: Your bare fists")
+            self.equipped_weapon.config(text=f"Weapon: Your bare fists!")
         if self.player.armour:
             self.equipped_armour.config(text=f"Armour: {self.player.armour.name}")
         else:
@@ -685,7 +790,8 @@ class Menu(ttk.Frame):
         self.info.grid(row=2, column=0, pady=(10, 20), columnspan=3)
 
         self.dest = self.current_location.dest_name(self.locations)
-
+        self.take_button = None
+        self.take_dropdown = None
         self.buttons = []
         self.move_header = ttk.Label(self, text="Where to?", font="Helvetica", style="info.TLabel")
         self.move_header.grid(row=3, column=0, pady=(0, 5), columnspan=3)
@@ -714,16 +820,32 @@ class Menu(ttk.Frame):
             self.talk_button.grid(row=5, ipadx=10, ipady=2, padx=4, column=0, pady=50, sticky="nsew", columnspan=1)
             self.buttons.append(self.talk_button)
 
-        if self.current_location.check_item():
-            self.take_button = ttk.Button(self, style="success.Outline.TButton", text=f"Take Item(s)",
-                                          command=lambda: self.take_item())
+        if self.current_location.check_item() == 1:
+            self.take_button = ttk.Button(self, text=f"Take {self.current_location.item[0].name}",
+                                          style="success.Outline.TButton",
+                                          command=lambda: self.take_item(self.current_location.item[0]))
             self.take_button.grid(row=5, ipadx=10, ipady=2, padx=4, column=1, pady=50, sticky="nsew", columnspan=1)
             self.can_take()
             self.buttons.append(self.take_button)
+        elif self.current_location.check_item() > 1:
+            self.take_dropdown = ttk.Menubutton(self, text="Take Items", style="success.Outline.TButton")
+            self.menu = tk.Menu(self.take_dropdown, tearoff=0)
+            for item in self.current_location.item:
+                self.menu.add_radiobutton(label=f"{item.name} - {item.desc}",
+                                          command=lambda take_item=item: self.take_item(take_item))
+            self.take_dropdown.grid(row=5, ipadx=10, ipady=2, padx=4, column=1, pady=50, sticky="nsew",
+                                    columnspan=1)
+            self.take_dropdown['menu'] = self.menu
+            self.buttons.append(self.take_dropdown)
+            self.buttons.append(self.menu)
+            self.can_take()
 
     def can_take(self):
         if self.player.check_max_inv():
-            self.take_button.config(state="disabled", text="Max inventory!")
+            if self.take_button:
+                self.take_button.config(state="disabled", text="Max inventory!")
+            else:
+                self.take_dropdown.config(state="disabled", text="Max inventory!")
 
     def move(self, dest):
         """moves the player"""
@@ -740,8 +862,8 @@ class Menu(ttk.Frame):
 
         self.update_widgets()
 
-    def take_item(self):
-        item_name = self.player.take_item(self.current_location)
+    def take_item(self, item):
+        item_name = self.player.take_item(item, self.current_location)
         add_item_prompt = f"Successfully added {item_name} to inventory!\n\n"
         self.info.config(state="normal")
         self.info.insert(tk.END, add_item_prompt)
@@ -779,13 +901,25 @@ class Menu(ttk.Frame):
             self.talk_button.grid(row=5, ipadx=10, ipady=2, padx=4, column=0, pady=50, sticky="nsew", columnspan=1)
             self.buttons.append(self.talk_button)
 
-        if self.current_location.check_item():
-            self.take_button = ttk.Button(self, style="success.Outline.TButton", text=f"Take Item(s)",
-                                          command=lambda: self.take_item())
-            self.can_take()
-
+        if self.current_location.check_item() == 1:
+            self.take_button = ttk.Button(self, text=f"Take {self.current_location.item[0].name}",
+                                          style="success.Outline.TButton",
+                                          command=lambda: self.take_item(self.current_location.item[0]))
             self.take_button.grid(row=5, ipadx=10, ipady=2, padx=4, column=1, pady=50, sticky="nsew", columnspan=1)
+            self.can_take()
             self.buttons.append(self.take_button)
+        elif self.current_location.check_item() > 1:
+            self.take_dropdown = ttk.Menubutton(self, text="Take Items", style="success.Outline.TButton")
+            self.menu = tk.Menu(self.take_dropdown, tearoff=0)
+            for item in self.current_location.item:
+                self.menu.add_radiobutton(label=f"{item.name} - {item.desc}",
+                                          command=lambda take_item=item: self.take_item(take_item))
+            self.take_dropdown.grid(row=5, ipadx=10, ipady=2, padx=4, column=1, pady=50, sticky="nsew",
+                                    columnspan=1)
+            self.take_dropdown['menu'] = self.menu
+            self.buttons.append(self.take_dropdown)
+            self.buttons.append(self.menu)
+            self.can_take()
 
 
 class StatusBar(ttk.Frame):
@@ -825,12 +959,15 @@ class StatusBar(ttk.Frame):
 def main():
     """ Main game loop """
     # test player
-    player = Player('test', 100, 10, 10, "A", 10,
-                    [Weapon(0, "hi", "hi", 0, 0)], None, None, [])
-    weapons = Weapon.generate_from_file("items.txt")
+    player = Player('test', 100, 10, 10, "A",
+                    10, [], 0, 0, [])
+    # noinspection PyTypeChecker
+    items = chain(Consumable.generate_from_file("items.txt"), Weapon.generate_from_file("items.txt"))
+    all_items = [item for item in items]
+
     locations = [Location(**loc) for loc in LOC_LIST]
     for location in locations:
-        location.link_item(weapons)
+        location.link_item(all_items)
 
     app = App(player, locations)
     app.mainloop()
