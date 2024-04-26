@@ -12,16 +12,16 @@ import tkinter as tk
 import ttkbootstrap as tb
 from tkinter import ttk
 from itertools import islice, chain
+# import json
+import random
 
 # from pprint import pprint
 
-NPC_DIALOGUE = [{"name": "Test", "": ""}]
-
 # TODO finish map
-LOC_LIST = [{"name": "A", "desc": "Start", "dest": ["B", "C", "D"], "npc": "Test", "item": [2, 1]},
-            {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "Hi", "item": [2]},
-            {"name": "C", "desc": "Path 2", "dest": ["D"], "npc": "", "item": [1]},
-            {"name": "D", "desc": "End", "dest": ["A"], "npc": "", "item": ""}]
+LOC_LIST = [{"name": "A", "desc": "Start", "dest": ["B", "C", "D"], "npc": "Test", "enemy": [1], "item": [2, 1]},
+            {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "Hi", "enemy": "", "item": [2]},
+            {"name": "C", "desc": "Path 2", "dest": ["D"], "npc": "", "enemy": "", "item": [1]},
+            {"name": "D", "desc": "End", "dest": ["A"], "npc": "", "enemy": "", "item": ""}]
 
 
 class Character:
@@ -32,16 +32,16 @@ class Character:
         _name (str): The name of the character.
         _attack (int): The attack power of the character.
         _defence (int): The defence power of the character.
-        _location (str): The current location of the character.
     """
 
-    def __init__(self, name, health, attack, defence, location, coins, inv):
+    def __init__(self, name, level, xp, health, attack, defence, coins, inv):
         self._name = name
-        self._health = health
-        self._attack = attack
-        self._defence = defence
-        self._location = location
-        self._coins = coins
+        self._level = int(level)
+        self._xp = int(xp)
+        self._health = int(health)
+        self._attack = int(attack)
+        self._defence = int(defence)
+        self._coins = int(coins)
         self._inv = inv
 
 
@@ -63,12 +63,13 @@ class Player(Character):
         print_help(): Prints the available commands and instructions.
     """
 
-    def __init__(self, name, health, attack, defence, location, coins, inv, weapon, armour, skills):
-        super().__init__(name, health, attack, defence, location, coins, inv)
+    def __init__(self, name, level, xp, health, attack, defence, location, coins, inv, weapon, armour, skills):
+        super().__init__(name, level, xp, health, attack, defence, coins, inv)
 
         self._weapon = weapon
         self._armour = armour
         self._skills = skills
+        self._location = location
         self.max_inv_size = 6
         self._max_health = 100
         # xp
@@ -262,10 +263,56 @@ class Player(Character):
 
 
 class Enemy(Character):
-    def __init__(self, name, health, attack, defence, location, coins, inv):
-        super().__init__(name, health, attack, defence, location, coins, inv)
+    def __init__(self, enemy_id, name, level, xp, health, attack, defence, coins, inv):
+        super().__init__(name, level, xp, health, attack, defence, coins, inv)
+        self.id = int(enemy_id)
 
-    pass
+    @classmethod
+    def generate_from_file(cls, in_file):
+        """ generate enemies from enemy.csv file """
+        with open(in_file, 'r') as enemies:
+            for enemy in enemies:
+                data = enemy.strip().split(',')
+
+                enemy_id = data[0].strip()
+                enemy_name = data[1].strip()
+                enemy_level = data[2].strip()
+
+                xp_range = data[3].strip().split('(')[1].split(')')[0].split('-')
+                min_xp = int(xp_range[0].strip())
+                max_xp = int(xp_range[1].strip())
+                enemy_xp = random.randint(min_xp, max_xp)
+
+                health_range = data[4].strip().split('(')[1].split(')')[0].split('-')
+                min_health = int(health_range[0].strip())
+                max_health = int(health_range[1].strip())
+                enemy_health = random.randint(min_health, max_health)
+
+                attack_range = data[5].strip().split('(')[1].split(')')[0].split('-')
+                min_attack = int(attack_range[0].strip())
+                max_attack = int(attack_range[1].strip())
+                enemy_attack = random.randint(min_attack, max_attack)
+
+                defence_range = data[6].strip().split('(')[1].split(')')[0].split('-')
+                min_defence = int(defence_range[0].strip())
+                max_defence = int(defence_range[1].strip())
+                enemy_defence = random.randint(min_defence, max_defence)
+
+                coins_range = data[7].strip().split('(')[1].split(')')[0].split('-')
+                min_coins = int(coins_range[0].strip())
+                max_coins = int(coins_range[1].strip())
+                enemy_coins = random.randint(min_coins, max_coins)
+
+                enemy_inv = [item.strip() for item in data[8].strip().split(';')]
+                enemy_chance = data[9].strip()
+
+                if random.randint(1, int(enemy_chance)) == 1:
+                    enemy_inv = random.choice(enemy_inv)
+                else:
+                    enemy_inv = None
+
+                yield Enemy(enemy_id, enemy_name, enemy_level, enemy_xp, enemy_health, enemy_attack, enemy_defence,
+                            enemy_coins, enemy_inv)
 
 
 class Skills:
@@ -338,11 +385,12 @@ class Location:
         destinations.
     """
 
-    def __init__(self, name, desc, dest, npc, item):
+    def __init__(self, name, desc, dest, npc, enemy, item):
         self._name = name
         self._desc = desc
         self._dest = dest
         self._npc = npc
+        self._enemy = enemy
         self._item = item
 
     @property
@@ -389,6 +437,14 @@ class Location:
     def item(self):
         del self._item
 
+    @property
+    def enemy(self):
+        return self._enemy
+
+    @enemy.setter
+    def enemy(self, new_enemy):
+        self._enemy = new_enemy
+
     def link_item(self, all_items):
         """link item id to item object"""
         new_item_list = []
@@ -398,6 +454,16 @@ class Location:
                     new_item_list.append(all_items[i])
 
         self._item = new_item_list
+
+    def link_enemies(self, all_enemies):
+        """link item id to item object"""
+        new_enemy_list = []
+        for i in range(len(all_enemies)):
+            for enemy_id in self._enemy:
+                if enemy_id == all_enemies[i].id:
+                    new_enemy_list.append(all_enemies[i])
+
+        self._enemy = new_enemy_list
 
     def check_npc(self):
         """Check if the current location has a non-player character.
@@ -417,6 +483,16 @@ class Location:
         """
         if self._item:
             return len(self._item)
+        return False
+
+    def check_enemy(self):
+        """Check if the current location has an item.
+
+        Returns:
+            bool: True if the location has an item, False otherwise.
+        """
+        if self._enemy:
+            return True
         return False
 
     def dest_name(self, locations):
@@ -450,75 +526,31 @@ class Location:
         dest_list_names = [dest_desc for dest_desc in dest_dict.values()]
 
         dest = ", ".join(dest_list_names)
+
         if self.check_npc() and self.check_item():
             return (f'You moved to {self.desc}.\nYou can move to {dest}.\nSomeone is waving at you!\n'
                     f'There is an item here!\n\n')
         elif self.check_item():
-            return f'You moved to {self.desc}.\nYou can move to {dest}.There is an item here!\n\n'
+            return f'You moved to {self.desc}.\nYou can move to {dest}.\nThere is an item here!\n\n'
         elif self.check_npc():
             return f'You moved to {self.desc}.\nYou can move to {dest}.\nSomeone is waving at you!\n\n'
         else:
             return f'You moved to {self.desc}.\nYou can move to {dest}.\n\n'
 
 
-class Npc:
-    def __init__(self, name, location, dialogue=None):
+class NPC:
+    def __init__(self, npc_id, name, dialogue):
         """
-        Initializes an instance of the Npc class.
+        Initializes an instance of the NPC class.
 
         Args:
+            npc_id (int): The id of the npc.
             name (str): The name of the NPC.
-            location (str): The location of the NPC.
-            dialogue (str, optional): The dialogue of the NPC. Defaults to None.
+            dialogue (str): The dialogue of the NPC.
         """
-        self.name = name
-        self.location = location
-        self.dialogue = dialogue
-
-    def interact(self):
-        """
-        Returns the name of the NPC.
-
-        Returns:
-            str: The name of the NPC.
-        """
-        return self.name
-
-    def print_dialogue(self):
-        """ 
-        Prints the dialogue of the NPC.
-        """
-        pass
-
-
-class Map:
-    """A class representing a map.
-
-    Attributes:
-        _map (str): The map data.
-        _npc (str): The NPC data.
-
-    """
-
-    def __init__(self, maps, npc):
-        self._map = maps
-        self._npc = npc
-
-    @property
-    def map(self):
-        return self._map
-
-    @property
-    def npc(self):
-        return self._npc
-
-    @map.setter
-    def map(self, newMap):
-        self._map = newMap
-
-    @npc.setter
-    def npc(self, newNpc):
-        self._npc = newNpc
+        self._npc_id = npc_id
+        self._name = name
+        self._dialogue = dialogue
 
 
 class App(tk.Tk):
@@ -528,7 +560,6 @@ class App(tk.Tk):
         super().__init__()
         self.player = player
         self.locations = location
-        self.current_location = self.player.current_location(self.locations)
 
         self.style = tb.Style(theme="darkly")
         self.geometry("600x600")
@@ -547,11 +578,31 @@ class App(tk.Tk):
         """Destroys current frame and replaces it with a new one."""
         new_frame = frame_class(self)
         if self._frame is not None:
+            self.save_info()
             self._frame.destroy()
         self._frame = new_frame
         self.frame_name = frame_class.__name__
         self._frame.grid()
+        self.open_info()
         self.statusbar = StatusBar(self)
+
+    def save_info(self):
+        """save text in info box"""
+        if self.frame_name == "Menu":
+            text_file = open("infosave.txt", "w")
+            text_file.write(self._frame.info.get(1.0, tk.END))
+            text_file.close()
+
+    def open_info(self):
+        """open_info"""
+        if self.frame_name == "Menu":
+            text_file = open("infosave.txt", "r")
+            content = text_file.read()
+            self._frame.info.config(state="normal")
+            self._frame.info.insert(1.0, content)
+            self._frame.info.config(state="disabled")
+            self._frame.info.see("end")
+            text_file.close()
 
 
 class Inventory(ttk.Frame):
@@ -722,6 +773,7 @@ class Inventory(ttk.Frame):
             self.use_button.config(text=f"Use - {uses}")
             self.destroy_item_widget()
             self.create_item_widget()
+            self.update_info_widget(f"You used {item.name}")
         self.update_widgets()
 
     def remove_item(self, item):
@@ -730,6 +782,7 @@ class Inventory(ttk.Frame):
         self.destroy_item_widget()
         self.create_item_widget()
         self.update_widgets()
+        self.update_info_widget(f"You discarded {item.name}")
 
     def equip_item(self, item):
         """equip item from equip button"""
@@ -737,6 +790,7 @@ class Inventory(ttk.Frame):
         self.destroy_item_widget()
         self.create_item_widget()
         self.update_widgets()
+        self.update_info_widget(f"You equipped {item.name}")
 
     def unequip_item(self, item):
         """equip item from equip button"""
@@ -744,6 +798,7 @@ class Inventory(ttk.Frame):
         self.destroy_item_widget()
         self.create_item_widget()
         self.update_widgets()
+        self.update_info_widget(f"You unequipped {item.name}")
 
     def update_widgets(self):
         """updates the current state of widgets"""
@@ -765,6 +820,26 @@ class Inventory(ttk.Frame):
             if self.no_item_msg:
                 self.no_item_msg.destroy()
 
+    @staticmethod
+    def update_info_widget(text):
+        text_file = open("infosave.txt", "a")
+        text_file.write(f"{text}\n")
+        text_file.close()
+
+
+class Dialogue(ttk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.player = parent.player
+        self.current_location = parent.current_location
+        self.grid(row=1, column=0, sticky="nsew")
+        self.columnconfigure(list(range(3)), weight=1, uniform="Silent_Creme")
+        self.rowconfigure(list(range(5)), weight=1)
+        self.rowconfigure(6, weight=3)
+
+    def create_widgets(self):
+        pass
+
 
 class Menu(ttk.Frame):
     """main menu for player interaction"""
@@ -773,7 +848,9 @@ class Menu(ttk.Frame):
         super().__init__(parent)
         self.locations = parent.locations
         self.player = parent.player
-        self.current_location = parent.current_location
+        self.current_location = self.player.current_location(self.locations)
+
+        self.parent = parent
 
         self.grid(row=1, column=0, sticky="nsew")
         self.columnconfigure(list(range(3)), weight=1, uniform="Silent_Creme")
@@ -816,7 +893,8 @@ class Menu(ttk.Frame):
             self.filler.grid(row=5, column=0, pady=60)
 
         if self.current_location.check_npc():
-            self.talk_button = ttk.Button(self, style="success.Outline.TButton", text=f"Talk")
+            self.talk_button = ttk.Button(self, style="success.Outline.TButton", text=f"Talk",
+                                          command=lambda: self.parent.switch_frame(Dialogue))
             self.talk_button.grid(row=5, ipadx=10, ipady=2, padx=4, column=0, pady=50, sticky="nsew", columnspan=1)
             self.buttons.append(self.talk_button)
 
@@ -827,6 +905,7 @@ class Menu(ttk.Frame):
             self.take_button.grid(row=5, ipadx=10, ipady=2, padx=4, column=1, pady=50, sticky="nsew", columnspan=1)
             self.can_take()
             self.buttons.append(self.take_button)
+
         elif self.current_location.check_item() > 1:
             self.take_dropdown = ttk.Menubutton(self, text="Take Items", style="success.Outline.TButton")
             self.menu = tk.Menu(self.take_dropdown, tearoff=0)
@@ -839,6 +918,12 @@ class Menu(ttk.Frame):
             self.buttons.append(self.take_dropdown)
             self.buttons.append(self.menu)
             self.can_take()
+
+        if self.current_location.check_enemy():
+            self.fight_button = ttk.Button(self, style="success.Outline.TButton", text=f"Fight",
+                                           command=lambda: self.parent.switch_frame(Dialogue))
+            self.fight_button.grid(row=5, ipadx=10, ipady=2, padx=4, column=2, pady=50, sticky="nsew", columnspan=1)
+            self.buttons.append(self.fight_button)
 
     def can_take(self):
         if self.player.check_max_inv():
@@ -864,7 +949,7 @@ class Menu(ttk.Frame):
 
     def take_item(self, item):
         item_name = self.player.take_item(item, self.current_location)
-        add_item_prompt = f"Successfully added {item_name} to inventory!\n\n"
+        add_item_prompt = f"Added {item_name} to inventory!\n\n"
         self.info.config(state="normal")
         self.info.insert(tk.END, add_item_prompt)
         self.info.config(state="disabled")
@@ -897,7 +982,8 @@ class Menu(ttk.Frame):
             self.filler.grid(row=5, column=0, pady=60)
 
         if self.current_location.check_npc():
-            self.talk_button = ttk.Button(self, style="success.Outline.TButton", text=f"Talk")
+            self.talk_button = ttk.Button(self, style="success.Outline.TButton", text=f"Talk",
+                                          command=lambda: self.parent.switch_frame(Dialogue))
             self.talk_button.grid(row=5, ipadx=10, ipady=2, padx=4, column=0, pady=50, sticky="nsew", columnspan=1)
             self.buttons.append(self.talk_button)
 
@@ -920,6 +1006,11 @@ class Menu(ttk.Frame):
             self.buttons.append(self.take_dropdown)
             self.buttons.append(self.menu)
             self.can_take()
+        if self.current_location.check_enemy():
+            self.fight_button = ttk.Button(self, style="success.Outline.TButton", text=f"Fight",
+                                           command=lambda: self.parent.switch_frame(Dialogue))
+            self.fight_button.grid(row=5, ipadx=10, ipady=2, padx=4, column=2, pady=50, sticky="nsew", columnspan=1)
+            self.buttons.append(self.fight_button)
 
 
 class StatusBar(ttk.Frame):
@@ -934,7 +1025,7 @@ class StatusBar(ttk.Frame):
                                   command=lambda: self.switch_frame(Inventory))
             self.inv.grid(row=6, column=0, sticky="nsew")
 
-        if parent.frame_name == "Inventory":
+        if parent.frame_name != "Menu":
             self.inv = ttk.Button(parent, text=f"Back to game", style="danger.Outline.TButton",
                                   command=lambda: self.switch_frame(Menu))
             self.inv.grid(row=6, column=0, sticky="nsew")
@@ -959,15 +1050,20 @@ class StatusBar(ttk.Frame):
 def main():
     """ Main game loop """
     # test player
-    player = Player('test', 100, 10, 10, "A",
-                    10, [], 0, 0, [])
+    player = Player('test', 100, 10, 10, 10,
+                    10, "A", 0, [], None, None, [])
     # noinspection PyTypeChecker
     items = chain(Consumable.generate_from_file("items.txt"), Weapon.generate_from_file("items.txt"))
     all_items = [item for item in items]
+    enemies = Enemy.generate_from_file("enemy.txt")
+    all_enemies = [enemy for enemy in enemies]
 
     locations = [Location(**loc) for loc in LOC_LIST]
     for location in locations:
         location.link_item(all_items)
+        location.link_enemies(all_enemies)
+
+    open('infosave.txt', 'w').close()
 
     app = App(player, locations)
     app.mainloop()
