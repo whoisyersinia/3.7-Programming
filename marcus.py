@@ -21,7 +21,7 @@ import math
 # from pprint import pprint
 
 # TODO finish map
-LOC_LIST = [{"name": "A", "desc": "Start", "dest": ["B", "C", "D"], "npc": "Test", "enemy": [1], "item": [2, 1]},
+LOC_LIST = [{"name": "A", "desc": "Start", "dest": ["B", "C", "D"], "npc": "Test", "enemy": [1], "item": [3, 1]},
             {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "Hi", "enemy": "", "item": [2]},
             {"name": "C", "desc": "Path 2", "dest": ["D"], "npc": "", "enemy": "", "item": [1]},
             {"name": "D", "desc": "End", "dest": ["A"], "npc": "", "enemy": "", "item": ""}]
@@ -49,10 +49,22 @@ class Character:
         self._inv = inv
         self._spells = spells
         self._block = False
+        self._buff_duration = 0
+
+        self.attk_buff = 0
+        self.def_buff = 0
 
     @property
     def block(self):
         return self._block
+
+    @property
+    def buff_duration(self):
+        return int(self._buff_duration)
+
+    @buff_duration.setter
+    def buff_duration(self, new_buff_duration):
+        self._buff_duration = new_buff_duration
 
     def is_alive(self):
         """checks if character is still alive"""
@@ -99,6 +111,47 @@ class Character:
         else:
             xp_required = 100 + (self._level * 50)
         return int(xp_required)
+
+    def link_spells(self):
+        """link item id to item object"""
+        new_spell_list = []
+        for i in range(len(ALL_SPELLS)):
+            for spell_id in self._spells:
+                if spell_id == ALL_SPELLS[i].id:
+                    new_spell_list.append(ALL_SPELLS[i])
+
+        self._spells = new_spell_list
+
+    def use_spell(self, spell):
+        if isinstance(spell, Buff):
+            if self._buff_duration == 0:
+                if spell.attack > 0:
+                    self._attack += spell.attack
+                    self._buff_duration = spell.duration
+                    self.attk_buff = spell.attack
+                if spell.defence > 0:
+                    self._defence += spell.defence
+                    self._buff_duration = spell.duration
+                    self.def_buff = spell.defence
+            else:
+                return False
+        elif isinstance(spell, Heal):
+            if self._health != self._max_hp:
+                old_health = self._health
+                self._health += spell.health
+                if self._health > self._max_hp:
+                    self._health = self._max_hp
+                print(f"Healed {self._health - old_health} health!")
+            else:
+                print("Already max health!")
+                return False
+        return True
+
+    def revert_spell(self):
+        self._attack -= self.attk_buff
+        self._defence -= self.def_buff
+        self.attk_buff = 0
+        self.def_buff = 0
 
 
 class Player(Character):
@@ -411,6 +464,14 @@ class Enemy(Character):
     def max_hp(self, new_max_hp):
         self._max_hp = new_max_hp
 
+    @property
+    def spells(self):
+        return self._spells
+
+    @spells.setter
+    def spells(self, new_spells):
+        self._spells = new_spells
+
     @classmethod
     def generate_from_file(cls, in_file):
         """ generate enemies from enemy.csv file """
@@ -458,29 +519,81 @@ class Enemy(Character):
                 enemy_inv = new_item_list
                 enemy_chance = data[9].strip()
 
+                enemy_spells = [item.strip() for item in data[10].strip().split(';')]
+                new_spell_list = []
+                for i in range(len(ALL_SPELLS)):
+                    for spell_id in enemy_spells:
+                        if int(spell_id) == ALL_SPELLS[i].id:
+                            new_spell_list.append(ALL_SPELLS[i])
+
+                enemy_spells = new_spell_list
+
                 if random.randint(1, int(enemy_chance)) == 1:
                     enemy_inv = random.choice(enemy_inv)
                 else:
                     enemy_inv = None
 
                 yield Enemy(enemy_id, enemy_name, enemy_level, enemy_xp, enemy_health, enemy_attack, enemy_defence,
-                            enemy_coins, enemy_inv, enemy_health, None)
+                            enemy_coins, enemy_inv, enemy_health, enemy_spells)
 
 
 class Spells:
     """A class representing the spells in the game"""
 
-    def __init__(self, spell_id, name, cooldown):
-        self._id = spell_id
-        self._name = name
-        self._cooldown = cooldown
+    def __init__(self, spell_id, name, description, cooldown, max_cd):
+        self.id = int(spell_id)
+        self.name = name
+        self.description = description
+        self._cooldown = int(cooldown)
+        self._max_cd = int(max_cd)
+
+    @property
+    def cooldown(self):
+        return self._cooldown
+
+    @cooldown.setter
+    def cooldown(self, new_cooldown):
+        self._cooldown = new_cooldown
+
+    @property
+    def max_cd(self):
+        return self._max_cd
+
+    @max_cd.setter
+    def max_cd(self, new_max_cd):
+        self.max_cd = new_max_cd
 
 
 class Buff(Spells):
     """A class representing the buffs in the game inherited from the spells"""
 
-    def __init__(self, spell_id, name, cooldown):
-        super().__init__(spell_id, name, cooldown)
+    def __init__(self, spell_id, name, description, cooldown, attack, defence, duration, max_cd):
+        super().__init__(spell_id, name, description, cooldown, max_cd)
+        self.attack = int(attack)
+        self.defence = int(defence)
+        self.duration = int(duration)
+
+    @classmethod
+    def generate_from_file(cls, in_file):
+        """ generate spells from spells.txt file """
+        with open(in_file, 'r') as buffs:
+            for buff in islice(buffs, 0, 3):
+                yield Buff(*buff.strip().split(","))
+
+
+class Heal(Spells):
+    """A class representing heal spells"""
+
+    def __init__(self, spell_id, name, description, cooldown, health, max_cd):
+        super().__init__(spell_id, name, description, cooldown, max_cd)
+        self.health = int(health)
+
+    @classmethod
+    def generate_from_file(cls, in_file):
+        """ generate spells from spells.txt file """
+        with open(in_file, 'r') as heals:
+            for heal in islice(heals, 7, 8):
+                yield Heal(*heal.strip().split(","))
 
 
 class Item:
@@ -737,7 +850,7 @@ class App(tk.Tk):
         self._frame = None
         self.statusbar = None
 
-        self.switch_frame(CombatScreen)
+        self.switch_frame(Menu)
 
     def switch_frame(self, frame_class):
         """Destroys current frame and replaces it with a new one."""
@@ -831,7 +944,7 @@ class Inventory(ttk.Frame):
         else:
             self.equipped_armour = ttk.Label(self, text=f"Armour: Leisure Club Hoodie")
         self.equipped_armour.grid(row=4, column=0, columnspan=3)
-        self.skills = ttk.Label(self, text=f"Skills: {self.player.skills}")
+        self.skills = ttk.Label(self, text=f"Skills: {self.player.spells[0].name}")
         self.skills.grid(row=5, column=0, columnspan=3)
 
         ttk.Separator(self, orient='horizontal').grid(row=10, column=0, columnspan=3, sticky="nsew", pady=(10, 3))
@@ -977,7 +1090,7 @@ class Inventory(ttk.Frame):
         """updates the current state of widgets"""
         self.stats.config(text=f"Level: ... | {self.player.health} HP | Attack: {self.player.attack} | "
                                f"Defence: {self.player.defence} | {self.player.coins} coins.")
-        self.skills.config(text=f"Skills: {self.player.skills}")
+        self.skills.config(text=f"Skills: {self.player.spells[0]}")
         if self.player.weapon:
             self.equipped_weapon.config(text=f"Weapon: {self.player.weapon.name}")
         else:
@@ -994,6 +1107,15 @@ class Inventory(ttk.Frame):
                 self.no_item_msg.destroy()
 
 
+class GameOver(ttk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.font = "VCR OSD MONO"
+
+        self.game_over = ttk.Label(text="Game Over", font=(self.font, 40), style="danger.TLabel")
+        self.game_over.grid(row=0, column=0)
+
+
 class CombatScreen(ttk.Frame):
     """tk frame for the combat """
 
@@ -1006,8 +1128,8 @@ class CombatScreen(ttk.Frame):
         self.enemy = self.current_location.enemy[0]
         self.turn = 0
         self.default_menu = []
+        self.spells_button = []
         self.font = "VCR OSD MONO"
-
         self.grid(row=1, column=0, sticky="nsew")
         self.columnconfigure(list(range(3)), weight=1, uniform="Silent_Creme")
         self.rowconfigure(list(range(5)), weight=1)
@@ -1018,45 +1140,51 @@ class CombatScreen(ttk.Frame):
         self.block = None
         self.basic_attack = None
         self.actions = ttk.Label(self, text=f"Actions", font=(self.font, 20), style="info.TLabel")
-        self.player_defence = None
-        self.player_attack = None
+        self.player_attack = ttk.Label(self, text=f"{self.player.attack} ATK", font=(self.font, 16))
+        self.player_attack.grid(row=4, column=1)
+        self.player_defence = ttk.Label(self, text=f"{self.player.defence} DEF", font=(self.font, 16))
+        self.player_defence.grid(row=4, column=2)
         self.player_health = None
-        self.player_name = None
-        self.enemy_defence = None
-        self.enemy_attack = None
+        self.player_name = tk.Label(self, text=f"{self.player.name}'s Stats", font=(self.font, 20))
+        self.player_name.grid(row=3, column=1)
+        self.enemy_defence = ttk.Label(self, text=f"{self.enemy.defence} DEF", font=(self.font, 16))
+        self.enemy_attack = ttk.Label(self, text=f"{self.enemy.attack} ATK", font=(self.font, 16))
         self.enemy_health = None
-        self.fight = None
+        self.fight = tk.Label(self, text=f"LV.{self.enemy.level} {self.enemy.name}", font=(self.font, 24),
+                              fg='#FF0000')
+        self.spell = None
+        self.info = tk.Text(self, height=10, relief="ridge", font="Helvetica", state="disabled")
+        self.info.grid(row=2, column=0, pady=(10, 20), columnspan=3)
 
         self.create_widgets()
 
     def create_widgets(self):
-        self.fight = tk.Label(self, text=f"LV.{self.enemy.level} {self.enemy.name}", font=(self.font, 24),
-                              fg='#FF0000')
+        for b in self.spells_button:
+            b.destroy()
+
+        if self.enemy.buff_duration > 0:
+            self.fight.config(text=f"LV.{self.enemy.level} {self.enemy.name}\n"
+                                   f"Buff duration: {self.enemy.buff_duration} turn(s)")
+        else:
+            self.fight.config(text=f"LV.{self.enemy.level} {self.enemy.name}\n")
         self.fight.grid(row=0, column=0, sticky="nsew", columnspan=3, pady=(0, 10))
 
         self.enemy_health = tk.Label(self, text=f"HP {self.enemy.health}/{self.enemy.max_hp}", font=(self.font, 16))
         self.enemy_health.grid(row=1, column=0, sticky="nsew")
 
-        self.enemy_attack = tk.Label(self, text=f"{self.enemy.attack} ATK", font=(self.font, 16))
-        self.enemy_attack.grid(row=1, column=1, sticky="nsew")
+        self.enemy_attack.grid(row=1, column=1)
 
-        self.enemy_defence = tk.Label(self, text=f"{self.enemy.defence} DEF", font=(self.font, 16))
-        self.enemy_defence.grid(row=1, column=2, sticky="nsew")
+        self.enemy_defence.grid(row=1, column=2)
 
-        self.info = tk.Text(self, height=10, relief="ridge", font="Helvetica", state="disabled")
-        self.info.grid(row=2, column=0, pady=(10, 20), columnspan=3)
-
-        self.player_name = tk.Label(self, text=f"{self.player.name}'s Stats", font=(self.font, 20))
-        self.player_name.grid(row=3, column=1, sticky="nsew")
+        if not self.buff_active():
+            self.player_name.config(text=f"{self.player.name}'s Stats")
+            self.player_name.grid(row=3, column=0, sticky="nsew", columnspan=3)
+        else:
+            self.player_name.config(text=f"{self.player.name}'s Stats\n "
+                                         f"Buff duration: {self.player.buff_duration} turn(s)")
 
         self.player_health = tk.Label(self, text=f"HP {self.player.health}/{self.player.max_hp}", font=(self.font, 16))
         self.player_health.grid(row=4, column=0, sticky="nsew")
-
-        self.player_attack = tk.Label(self, text=f"{self.player.attack} ATK", font=(self.font, 16))
-        self.player_attack.grid(row=4, column=1, sticky="nsew")
-
-        self.player_defence = ttk.Label(self, text=f"{self.player.defence} DEF", font=(self.font, 16))
-        self.player_defence.grid(row=4, column=2)
 
         self.actions.config(text=f"Actions")
         self.actions.grid(row=5, column=1, pady=(10, 5))
@@ -1083,8 +1211,60 @@ class CombatScreen(ttk.Frame):
     def open_spells_menu(self):
         for widget in self.default_menu:
             widget.destroy()
+
         self.actions.config(text="Spellbook")
         self.spells.config(text="Go back", command=lambda: self.create_widgets())
+        row_num = 0
+        col_num = 0
+
+        for spell in self.player.spells:
+            if col_num == 0:
+                row_num = 0
+            elif col_num % 3 == 0:
+                row_num += 3
+                col_num = 0
+
+            self.spell = ttk.Button(self, style="primary.TButton", text=f"{spell.name}\n"
+                                                                        f"{spell.description}",
+                                    command=lambda use_spell=spell: self.use_spell(use_spell))
+
+            if self.player.buff_duration > 0:
+                if isinstance(spell, Buff):
+                    self.spell.config(state="disabled")
+
+            if self.player.max_hp == self.player.health:
+                if isinstance(spell, Heal):
+                    self.spell.config(state="disabled")
+
+            if spell.cooldown > 0:
+                self.spell.config(state="disabled", text=f"{spell.name}\n"
+                                                         f"{spell.cooldown} cooldown\n"
+                                                         f"{spell.description}")
+
+            self.spell.grid(row=6, ipadx=10, ipady=2, padx=4, column=col_num, sticky="nsew",
+                            columnspan=1)
+
+            self.spells_button.append(self.spell)
+            col_num += 1
+
+    def use_spell(self, spell):
+        if self.player.use_spell(spell):
+            self.update_info(f"You used {spell.name}.\n\n")
+            spell.cooldown = spell.max_cd
+            if not self.is_dead(self.enemy):
+                if isinstance(spell, Buff):
+                    if spell.attack > 0:
+                        self.player_attack.config(text=f"{self.player.attack}(+{spell.attack}) ATK",
+                                                  style="danger.TLabel")
+                    if spell.defence > 0:
+                        self.player_defence.config(text=f"{self.player.defence}(+{spell.defence}) DEF",
+                                                   style="info.TLabel")
+                self.update_widgets()
+                self.enemy_action()
+                self.create_widgets()
+        else:
+            if isinstance(spell, Buff):
+                self.update_info(f"Already using a buff!\n")
 
     def end_combat(self):
         """end combat and get xp"""
@@ -1114,12 +1294,12 @@ class CombatScreen(ttk.Frame):
         self.current_location.enemy.remove(self.enemy)
         self.parent.switch_frame(Menu)
 
-    def is_dead(self, target):
+    @staticmethod
+    def is_dead(target):
         """check if the target (enemy or player) is dead"""
         if target.is_alive():
             return False
         else:
-            self.end_combat()
             return True
 
     def update_info(self, content):
@@ -1129,35 +1309,118 @@ class CombatScreen(ttk.Frame):
         self.info.config(state="disabled")
         self.info.see("end")
 
+    def add_turn(self):
+        """reduces all cooldown add a turn"""
+        for player_spell in self.player.spells:
+            if player_spell.cooldown > 0:
+                player_spell.cooldown -= 1
+        if self.player.buff_duration > 0:
+            self.player.buff_duration -= 1
+        if self.player.buff_duration == 0:
+            self.player.revert_spell()
+
+        for enemy_spell in self.enemy.spells:
+            if enemy_spell.cooldown > 0:
+                enemy_spell.cooldown -= 1
+        if self.enemy.buff_duration > 0:
+            self.enemy.buff_duration -= 1
+        if self.enemy.buff_duration == 0:
+            self.enemy.revert_spell()
+        self.turn += 1
+
+    def enemy_spell(self):
+        """enemy spell logic"""
+        for spell in self.enemy.spells:
+            if spell.cooldown <= 0:
+                self.enemy.use_spell(spell)
+                spell.cooldown = spell.max_cd
+
+                if not isinstance(spell, Buff):
+                    pass
+                else:
+                    if spell.attack > 0:
+                        self.enemy_attack.config(text=f"{self.enemy.attack}(+{spell.attack}) ATK",
+                                                 style="danger.TLabel")
+                    if spell.defence > 0:
+                        self.enemy_defence.config(text=f"{self.enemy.defence}(+{spell.defence}) DEF",
+                                                  style="info.TLabel")
+
+                self.update_info(f"{self.enemy.name} used {spell.name}!\n")
+
     def enemy_action(self):
         """enemy turn"""
+        self.enemy_spell()
         damage = self.player.take_damage(self.enemy.attack)
         self.update_info(f"{self.enemy.name} attacked you for {damage} damage.\n\n")
         if not self.is_dead(self.player):
+            self.add_turn()
             self.update_widgets()
-            self.turn += 1
+        else:
+            self.parent.switch_frame(GameOver)
 
     def combat_basic_attack(self):
         """perform basic attack"""
         damage = self.enemy.take_damage(self.player.attack)
         self.update_info(f"You attacked {self.enemy.name} for {damage} damage.\n\n")
         if not self.is_dead(self.enemy):
-            self.update_widgets()
             self.enemy_action()
+            self.update_widgets()
 
     def combat_block(self):
         """perform block - halves damage"""
         self.player.action_block()
         self.update_info(f"You are now blocking!\n\n")
         if not self.is_dead(self.enemy):
-            self.enemy_action()
             self.player.action_block()
             self.update_widgets()
+            self.enemy_action()
+
+    def buff_active(self):
+        if self.player.buff_duration > 0:
+            for b in self.spells_button:
+                b.destroy()
+
+            row_num = 0
+            col_num = 0
+
+            for spell in self.player.spells:
+                if col_num == 0:
+                    row_num = 0
+                elif col_num % 3 == 0:
+                    row_num += 3
+                    col_num = 0
+
+                if isinstance(spell, Buff):
+                    self.spell = ttk.Button(self, style="primary.TButton", text=f"{spell.name}\n{spell.description}",
+                                            command=lambda use_spell=spell: self.use_spell(use_spell), state="disabled")
+                    self.spell.grid(row=6, ipadx=10, ipady=2, padx=4, column=col_num, sticky="nsew",
+                                    columnspan=1)
+                    self.spells_button.append(self.spell)
+                col_num += 1
+            return True
+        else:
+            return False
 
     def update_widgets(self):
         """update widgets"""
-        self.enemy_health.config(text=f"HP {self.enemy.health}/{self.enemy.max_hp}")
+        if self.player.buff_duration > 0:
+            self.player_name.config(text=f"{self.player.name}'s Stats\n "
+                                         f"Buff duration: {self.player.buff_duration} turn(s)")
+        else:
+            self.player_name.config(text=f"{self.player.name}'s Stats")
+            self.player_attack.config(text=f"{self.player.attack} ATK", style="TLabel")
+            self.player_defence.config(text=f"{self.player.defence} DEF", style="TLabel")
+
+        if self.enemy.buff_duration > 0:
+            self.fight.config(text=f"{self.enemy.name}'s Stats\n "
+                                   f"Buff duration: {self.enemy.buff_duration} turn(s)")
+        else:
+            self.fight.config(text=f"LV.{self.enemy.level} {self.enemy.name}\n")
+            self.enemy_attack.config(text=f"{self.enemy.attack} ATK", style="TLabel")
+            self.enemy_defence.config(text=f"{self.enemy.defence} DEF", style="TLabel")
+
         self.player_health.config(text=f"HP {self.player.health}/{self.player.max_hp}")
+        self.enemy_health.config(text=f"HP {self.enemy.health}/{self.enemy.max_hp}")
 
 
 class MainMenu(ttk.Frame):
@@ -1367,16 +1630,17 @@ class StatusBar(ttk.Frame):
 
         frame_inv = ["Menu", "CombatScreen"]
 
-        if parent.frame_name in frame_inv:
-            self.inv = ttk.Button(parent, text=f"Open {self.player.name}'s Inventory",
-                                  command=lambda: self.switch_frame(Inventory))
-            parent.previous_frame.append(getattr(sys.modules[__name__], parent.frame_name))
-            self.inv.grid(row=6, column=0, sticky="nsew")
+        if parent.frame_name != "GameOver":
+            if parent.frame_name in frame_inv:
+                self.inv = ttk.Button(parent, text=f"Open {self.player.name}'s Inventory",
+                                      command=lambda: self.switch_frame(Inventory))
+                parent.previous_frame.append(getattr(sys.modules[__name__], parent.frame_name))
+                self.inv.grid(row=6, column=0, sticky="nsew")
 
-        if parent.frame_name not in frame_inv:
-            self.inv = ttk.Button(parent, text=f"Back to game", style="danger.Outline.TButton",
-                                  command=lambda: self.switch_frame(self.previous_frame))
-            self.inv.grid(row=6, column=0, sticky="nsew")
+            if parent.frame_name not in frame_inv:
+                self.inv = ttk.Button(parent, text=f"Back to game", style="danger.Outline.TButton",
+                                      command=lambda: self.switch_frame(self.previous_frame))
+                self.inv.grid(row=6, column=0, sticky="nsew")
 
         self.grid(row=6, column=0, sticky="nsew")
 
@@ -1386,18 +1650,13 @@ class StatusBar(ttk.Frame):
         self.inv.destroy()
 
 
-# class PlayerStatsMenu(ttk.Frame):
-#     def __init__(self, parent, player):
-#         super().__init__(parent)
-#         self.player = player
-#         self.bg = tk.Label(text="red")
-#         self.bg.grid(row=0, column=2, sticky="e")
-#         self.grid()
-
 # noinspection PyTypeChecker
 ITEMS = chain(Consumable.generate_from_file("items.txt"), Weapon.generate_from_file("items.txt"))
 ALL_ITEMS = [item for item in ITEMS]
 ENEMIES = Enemy.generate_from_file("enemy.txt")
+# noinspection PyTypeChecker
+SPELLS = chain(Buff.generate_from_file("spells.txt"), Heal.generate_from_file("spells.txt"))
+ALL_SPELLS = [spell for spell in SPELLS]
 ALL_ENEMIES = [enemy for enemy in ENEMIES]
 
 
@@ -1405,7 +1664,8 @@ def main():
     """ Main game loop """
     # test player
     player = Player('test', 1, 0, 20, 10,
-                    3, "A", 0, [], None, None, [])
+                    3, "A", 0, [], None, None, [1, 2, 8])
+    player.link_spells()
 
     locations = [Location(**loc) for loc in LOC_LIST]
     for location in locations:
