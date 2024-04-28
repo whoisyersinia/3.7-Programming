@@ -8,12 +8,15 @@ Author: Marcus Demafeliz
 Date: 30 March 2024
 """
 
+import sys
 import tkinter as tk
 import ttkbootstrap as tb
 from tkinter import ttk
 from itertools import islice, chain
-# import json
 import random
+import math
+
+# import json
 
 # from pprint import pprint
 
@@ -34,15 +37,68 @@ class Character:
         _defence (int): The defence power of the character.
     """
 
-    def __init__(self, name, level, xp, health, attack, defence, coins, inv):
+    def __init__(self, name, level, xp, health, attack, defence, coins, inv, max_hp, spells):
         self._name = name
         self._level = int(level)
         self._xp = int(xp)
         self._health = int(health)
+        self._max_hp = int(max_hp)
         self._attack = int(attack)
         self._defence = int(defence)
         self._coins = int(coins)
         self._inv = inv
+        self._spells = spells
+        self._block = False
+
+    @property
+    def block(self):
+        return self._block
+
+    def is_alive(self):
+        """checks if character is still alive"""
+        return self._health > 0
+
+    def take_damage(self, raw_damage):
+        """takes damage calculating raw_damage - defence"""
+        defence = self._defence
+        if self._block:
+            defence = self._defence * 2
+        realised_damage = raw_damage - defence
+        math.ceil(realised_damage)
+        if realised_damage < 0:
+            realised_damage = 0
+        self._health -= realised_damage
+        return realised_damage
+
+    def action_block(self):
+        if not self._block:
+            self._block = True
+        else:
+            self._block = False
+
+    def get_xp(self, xp):
+        """add xp"""
+        self._xp += xp
+        if self._xp >= self.xp_required():
+            self.level_up()
+            return True
+
+    def level_up(self):
+        """level up character if xp meets threshold"""
+        self._xp = self._xp - self.xp_required()
+        self._level += 1
+        self._attack += 2
+        self._defence += 1
+        if self._level % 5 == 0:
+            self._max_hp += 20
+
+    def xp_required(self):
+        """calculates the amount of xp required for level up"""
+        if self._level == 1:
+            xp_required = 1
+        else:
+            xp_required = 100 + (self._level * 50)
+        return int(xp_required)
 
 
 class Player(Character):
@@ -63,15 +119,14 @@ class Player(Character):
         print_help(): Prints the available commands and instructions.
     """
 
-    def __init__(self, name, level, xp, health, attack, defence, location, coins, inv, weapon, armour, skills):
-        super().__init__(name, level, xp, health, attack, defence, coins, inv)
+    def __init__(self, name, level, xp, health, attack, defence, location, coins, inv, weapon, armour, spells,
+                 max_hp=20):
+        super().__init__(name, level, xp, health, attack, defence, coins, inv, max_hp, spells)
 
         self._weapon = weapon
         self._armour = armour
-        self._skills = skills
         self._location = location
         self.max_inv_size = 6
-        self._max_health = 100
         # xp
         # luck
 
@@ -82,6 +137,14 @@ class Player(Character):
     @name.setter
     def name(self, new_name):
         self._name = new_name
+
+    @property
+    def level(self):
+        return self._level
+
+    @property
+    def xp(self):
+        return self._xp
 
     @property
     def health(self):
@@ -148,20 +211,20 @@ class Player(Character):
         self._armour = new_armour
 
     @property
-    def skills(self):
-        return self._skills
+    def spells(self):
+        return self._spells
 
-    @skills.setter
-    def skills(self, new_skills):
-        self._skills = new_skills
+    @spells.setter
+    def spells(self, new_spells):
+        self._spells = new_spells
 
     @property
-    def max_health(self):
-        return self._max_health
+    def max_hp(self):
+        return self._max_hp
 
-    @max_health.setter
-    def max_health(self, new_max_health):
-        self._max_health = new_max_health
+    @max_hp.setter
+    def max_hp(self, new_max_hp):
+        self._max_hp = new_max_hp
 
     # def get_skills(self, skill):
     #     """get skill objects"""
@@ -204,15 +267,20 @@ class Player(Character):
             return add_item.name
         return False
 
+    def combat_take_item(self, item):
+        """take item from enemy inv"""
+        self._inv.append(item)
+        print(f"Successfully added {item.name} to inventory!")
+
     def heal(self, healing):
         """heals the player based on certain amount of health prevent overhealing"""
-        if self._health == self.max_health:
+        if self._health == self._max_hp:
             print("Already max health!")
             return False
         old_health = self._health
         self._health += healing
-        if self._health > self.max_health:
-            self.health = self.max_health
+        if self._health > self._max_hp:
+            self.health = self._max_hp
         print(f"Healed {self._health - old_health} health!")
 
     def use_item(self, item):
@@ -263,9 +331,85 @@ class Player(Character):
 
 
 class Enemy(Character):
-    def __init__(self, enemy_id, name, level, xp, health, attack, defence, coins, inv):
-        super().__init__(name, level, xp, health, attack, defence, coins, inv)
-        self.id = int(enemy_id)
+    def __init__(self, enemy_id, name, level, xp, health, attack, defence, coins, inv, max_hp, spells):
+        super().__init__(name, level, xp, health, attack, defence, coins, inv, max_hp, spells)
+        self._id = int(enemy_id)
+
+    @property
+    def id(self):
+        return self._id
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, new_name):
+        self._name = new_name
+
+    @property
+    def level(self):
+        return self._level
+
+    @level.setter
+    def level(self, new_level):
+        self._level = new_level
+
+    @property
+    def xp(self):
+        return self._xp
+
+    @xp.setter
+    def xp(self, new_xp):
+        self._xp = new_xp
+
+    @property
+    def health(self):
+        return self._health
+
+    @health.setter
+    def health(self, new_health):
+        self._health = new_health
+
+    @property
+    def attack(self):
+        return self._attack
+
+    @attack.setter
+    def attack(self, new_attack):
+        self._attack = new_attack
+
+    @property
+    def defence(self):
+        return self._defence
+
+    @defence.setter
+    def defence(self, new_defence):
+        self._defence = new_defence
+
+    @property
+    def coins(self):
+        return self._coins
+
+    @coins.setter
+    def coins(self, new_coins):
+        self._coins = new_coins
+
+    @property
+    def inv(self):
+        return self._inv
+
+    @inv.setter
+    def inv(self, new_inv):
+        self._inv = new_inv
+
+    @property
+    def max_hp(self):
+        return self._max_hp
+
+    @max_hp.setter
+    def max_hp(self, new_max_hp):
+        self._max_hp = new_max_hp
 
     @classmethod
     def generate_from_file(cls, in_file):
@@ -304,6 +448,14 @@ class Enemy(Character):
                 enemy_coins = random.randint(min_coins, max_coins)
 
                 enemy_inv = [item.strip() for item in data[8].strip().split(';')]
+
+                new_item_list = []
+                for i in range(len(ALL_ITEMS)):
+                    for item_id in enemy_inv:
+                        if int(item_id) == ALL_ITEMS[i].id:
+                            new_item_list.append(ALL_ITEMS[i])
+
+                enemy_inv = new_item_list
                 enemy_chance = data[9].strip()
 
                 if random.randint(1, int(enemy_chance)) == 1:
@@ -312,11 +464,23 @@ class Enemy(Character):
                     enemy_inv = None
 
                 yield Enemy(enemy_id, enemy_name, enemy_level, enemy_xp, enemy_health, enemy_attack, enemy_defence,
-                            enemy_coins, enemy_inv)
+                            enemy_coins, enemy_inv, enemy_health, None)
 
 
-class Skills:
-    pass
+class Spells:
+    """A class representing the spells in the game"""
+
+    def __init__(self, spell_id, name, cooldown):
+        self._id = spell_id
+        self._name = name
+        self._cooldown = cooldown
+
+
+class Buff(Spells):
+    """A class representing the buffs in the game inherited from the spells"""
+
+    def __init__(self, spell_id, name, cooldown):
+        super().__init__(spell_id, name, cooldown)
 
 
 class Item:
@@ -445,23 +609,23 @@ class Location:
     def enemy(self, new_enemy):
         self._enemy = new_enemy
 
-    def link_item(self, all_items):
+    def link_item(self):
         """link item id to item object"""
         new_item_list = []
-        for i in range(len(all_items)):
+        for i in range(len(ALL_ITEMS)):
             for item_id in self._item:
-                if item_id == all_items[i].id:
-                    new_item_list.append(all_items[i])
+                if item_id == ALL_ITEMS[i].id:
+                    new_item_list.append(ALL_ITEMS[i])
 
         self._item = new_item_list
 
-    def link_enemies(self, all_enemies):
+    def link_enemies(self):
         """link item id to item object"""
         new_enemy_list = []
-        for i in range(len(all_enemies)):
+        for i in range(len(ALL_ENEMIES)):
             for enemy_id in self._enemy:
-                if enemy_id == all_enemies[i].id:
-                    new_enemy_list.append(all_enemies[i])
+                if enemy_id == ALL_ENEMIES[i].id:
+                    new_enemy_list.append(ALL_ENEMIES[i])
 
         self._enemy = new_enemy_list
 
@@ -560,6 +724,7 @@ class App(tk.Tk):
         super().__init__()
         self.player = player
         self.locations = location
+        self.previous_frame = ["MainMenu"]
 
         self.style = tb.Style(theme="darkly")
         self.geometry("600x600")
@@ -572,7 +737,7 @@ class App(tk.Tk):
         self._frame = None
         self.statusbar = None
 
-        self.switch_frame(Menu)
+        self.switch_frame(CombatScreen)
 
     def switch_frame(self, frame_class):
         """Destroys current frame and replaces it with a new one."""
@@ -604,6 +769,12 @@ class App(tk.Tk):
             self._frame.info.see("end")
             text_file.close()
 
+    @staticmethod
+    def update_info_widget(text):
+        text_file = open("infosave.txt", "a")
+        text_file.write(f"{text}\n")
+        text_file.close()
+
 
 class Inventory(ttk.Frame):
     """ frame for the player inventory """
@@ -611,6 +782,7 @@ class Inventory(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
         self.player = parent.player
+        self.parent = parent
         self.grid(row=1, column=0, sticky="nsew")
         self.columnconfigure(list(range(3)), weight=1, uniform="Silent_Creme")
         self.rowconfigure(list(range(5)), weight=1)
@@ -637,11 +809,12 @@ class Inventory(ttk.Frame):
 
     def create_widgets(self):
         """ create widgets for the inventory frame """
-        self.name = ttk.Label(self, text=self.player.name, style="info.TLabel", font="Apple 30 bold")
+        self.name = ttk.Label(self, text=f"LV.{self.player.level} {self.player.name}", style="info.TLabel",
+                              font="Apple 30 bold")
         self.name.grid(row=0, column=0, columnspan=3, pady=(0, 10))
 
-        self.stats = ttk.Label(self, text=f"Level: ... | {self.player.health} HP | Attack: {self.player.attack} | "
-                                          f"Defence: {self.player.defence} | {self.player.coins} coins.",
+        self.stats = ttk.Label(self,
+                               text=f"XP {self.player.xp}/{self.player.xp_required()}  | HP {self.player.health}/{self.player.max_hp} | Attack: {self.player.attack} | Defence: {self.player.defence} | {self.player.coins} coins.",
                                font="Apple 15")
         self.stats.grid(row=1, column=0, columnspan=3)
 
@@ -734,7 +907,7 @@ class Inventory(ttk.Frame):
 
     def check_max_health(self, item):
         """checks if the player is at max health and disable use button if true"""
-        if item.health > 0 and self.player.health >= self.player.max_health:
+        if item.health > 0 and self.player.health >= self.player.max_hp:
             self.use_button.config(text=f"Already at max HP!", state="disabled", width=13)
 
     def create_weapon_item_widget(self, item, row_num, col_num):
@@ -773,7 +946,7 @@ class Inventory(ttk.Frame):
             self.use_button.config(text=f"Use - {uses}")
             self.destroy_item_widget()
             self.create_item_widget()
-            self.update_info_widget(f"You used {item.name}")
+            self.parent.update_info_widget(f"You used {item.name}")
         self.update_widgets()
 
     def remove_item(self, item):
@@ -782,7 +955,7 @@ class Inventory(ttk.Frame):
         self.destroy_item_widget()
         self.create_item_widget()
         self.update_widgets()
-        self.update_info_widget(f"You discarded {item.name}")
+        self.parent.update_info_widget(f"You discarded {item.name}")
 
     def equip_item(self, item):
         """equip item from equip button"""
@@ -790,7 +963,7 @@ class Inventory(ttk.Frame):
         self.destroy_item_widget()
         self.create_item_widget()
         self.update_widgets()
-        self.update_info_widget(f"You equipped {item.name}")
+        self.parent.update_info_widget(f"You equipped {item.name}")
 
     def unequip_item(self, item):
         """equip item from equip button"""
@@ -798,7 +971,7 @@ class Inventory(ttk.Frame):
         self.destroy_item_widget()
         self.create_item_widget()
         self.update_widgets()
-        self.update_info_widget(f"You unequipped {item.name}")
+        self.parent.update_info_widget(f"You unequipped {item.name}")
 
     def update_widgets(self):
         """updates the current state of widgets"""
@@ -820,14 +993,185 @@ class Inventory(ttk.Frame):
             if self.no_item_msg:
                 self.no_item_msg.destroy()
 
-    @staticmethod
-    def update_info_widget(text):
-        text_file = open("infosave.txt", "a")
-        text_file.write(f"{text}\n")
-        text_file.close()
+
+class CombatScreen(ttk.Frame):
+    """tk frame for the combat """
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.locations = parent.locations
+        self.player = parent.player
+        self.current_location = self.player.current_location(self.locations)
+        self.parent = parent
+        self.enemy = self.current_location.enemy[0]
+        self.turn = 0
+        self.default_menu = []
+        self.font = "VCR OSD MONO"
+
+        self.grid(row=1, column=0, sticky="nsew")
+        self.columnconfigure(list(range(3)), weight=1, uniform="Silent_Creme")
+        self.rowconfigure(list(range(5)), weight=1)
+        self.rowconfigure(6, weight=3)
+
+        self.spells = None
+        self.flee = None
+        self.block = None
+        self.basic_attack = None
+        self.actions = ttk.Label(self, text=f"Actions", font=(self.font, 20), style="info.TLabel")
+        self.player_defence = None
+        self.player_attack = None
+        self.player_health = None
+        self.player_name = None
+        self.enemy_defence = None
+        self.enemy_attack = None
+        self.enemy_health = None
+        self.fight = None
+
+        self.create_widgets()
+
+    def create_widgets(self):
+        self.fight = tk.Label(self, text=f"LV.{self.enemy.level} {self.enemy.name}", font=(self.font, 24),
+                              fg='#FF0000')
+        self.fight.grid(row=0, column=0, sticky="nsew", columnspan=3, pady=(0, 10))
+
+        self.enemy_health = tk.Label(self, text=f"HP {self.enemy.health}/{self.enemy.max_hp}", font=(self.font, 16))
+        self.enemy_health.grid(row=1, column=0, sticky="nsew")
+
+        self.enemy_attack = tk.Label(self, text=f"{self.enemy.attack} ATK", font=(self.font, 16))
+        self.enemy_attack.grid(row=1, column=1, sticky="nsew")
+
+        self.enemy_defence = tk.Label(self, text=f"{self.enemy.defence} DEF", font=(self.font, 16))
+        self.enemy_defence.grid(row=1, column=2, sticky="nsew")
+
+        self.info = tk.Text(self, height=10, relief="ridge", font="Helvetica", state="disabled")
+        self.info.grid(row=2, column=0, pady=(10, 20), columnspan=3)
+
+        self.player_name = tk.Label(self, text=f"{self.player.name}'s Stats", font=(self.font, 20))
+        self.player_name.grid(row=3, column=1, sticky="nsew")
+
+        self.player_health = tk.Label(self, text=f"HP {self.player.health}/{self.player.max_hp}", font=(self.font, 16))
+        self.player_health.grid(row=4, column=0, sticky="nsew")
+
+        self.player_attack = tk.Label(self, text=f"{self.player.attack} ATK", font=(self.font, 16))
+        self.player_attack.grid(row=4, column=1, sticky="nsew")
+
+        self.player_defence = ttk.Label(self, text=f"{self.player.defence} DEF", font=(self.font, 16))
+        self.player_defence.grid(row=4, column=2)
+
+        self.actions.config(text=f"Actions")
+        self.actions.grid(row=5, column=1, pady=(10, 5))
+
+        self.basic_attack = ttk.Button(self, style="success.Outline.TButton", text=f"Attack {self.enemy.name}",
+                                       command=lambda: self.combat_basic_attack())
+        self.basic_attack.grid(row=6, column=0, sticky="nsew", padx=5)
+        self.default_menu.append(self.basic_attack)
+
+        self.block = ttk.Button(self, style="success.Outline.TButton", text=f"Block {self.enemy.name}",
+                                command=lambda: self.combat_block())
+        self.block.grid(row=6, column=1, sticky="nsew", padx=5)
+        self.default_menu.append(self.block)
+
+        self.flee = ttk.Button(self, style="success.Outline.TButton", text=f"Flee",
+                               command=lambda: self.parent.switch_frame(Menu))
+        self.flee.grid(row=6, column=2, sticky="nsew", padx=5)
+        self.default_menu.append(self.flee)
+
+        self.spells = ttk.Button(self, style="info.Outline.TButton", text=f"Open spell book",
+                                 command=lambda: self.open_spells_menu())
+        self.spells.grid(row=7, column=1, sticky="nsew", padx=5, pady=50)
+
+    def open_spells_menu(self):
+        for widget in self.default_menu:
+            widget.destroy()
+        self.actions.config(text="Spellbook")
+        self.spells.config(text="Go back", command=lambda: self.create_widgets())
+
+    def end_combat(self):
+        """end combat and get xp"""
+        if not self.player.get_xp(self.enemy.xp):
+            self.parent.update_info_widget(
+                f"Successfully defeated {self.enemy.name}!\nYou have gained {self.enemy.xp} XP!")
+        else:
+            if self.player.level % 5 != 0:
+                self.parent.update_info_widget(f"Successfully defeated {self.enemy.name}!\n"
+                                               f"You have gained {self.enemy.xp} XP!\n\n"
+                                               f"You have leveled up!!!\n"
+                                               f"You are now Level {self.player.level}!\n"
+                                               f"Attack and Defence have increased!\n")
+            else:
+                self.parent.update_info_widget(f"Successfully defeated {self.enemy.name}!\n"
+                                               f"You have gained {self.enemy.xp} XP!\n\n"
+                                               f"You have leveled up!!!\n"
+                                               f"You are now Level {self.player.level}!\n"
+                                               f"All stats increased!\n")
+
+        if self.enemy.inv:
+            self.player.combat_take_item(self.enemy.inv)
+            self.parent.update_info_widget(f"You got {self.enemy.inv.name} from {self.enemy.name}!")
+        else:
+            print("none taken")
+
+        self.current_location.enemy.remove(self.enemy)
+        self.parent.switch_frame(Menu)
+
+    def is_dead(self, target):
+        """check if the target (enemy or player) is dead"""
+        if target.is_alive():
+            return False
+        else:
+            self.end_combat()
+            return True
+
+    def update_info(self, content):
+        """update current status of combat"""
+        self.info.config(state="normal")
+        self.info.insert(tk.END, content)
+        self.info.config(state="disabled")
+        self.info.see("end")
+
+    def enemy_action(self):
+        """enemy turn"""
+        damage = self.player.take_damage(self.enemy.attack)
+        self.update_info(f"{self.enemy.name} attacked you for {damage} damage.\n\n")
+        if not self.is_dead(self.player):
+            self.update_widgets()
+            self.turn += 1
+
+    def combat_basic_attack(self):
+        """perform basic attack"""
+        damage = self.enemy.take_damage(self.player.attack)
+        self.update_info(f"You attacked {self.enemy.name} for {damage} damage.\n\n")
+        if not self.is_dead(self.enemy):
+            self.update_widgets()
+            self.enemy_action()
+
+    def combat_block(self):
+        """perform block - halves damage"""
+        self.player.action_block()
+        self.update_info(f"You are now blocking!\n\n")
+        if not self.is_dead(self.enemy):
+            self.enemy_action()
+            self.player.action_block()
+            self.update_widgets()
+
+    def update_widgets(self):
+        """update widgets"""
+        self.enemy_health.config(text=f"HP {self.enemy.health}/{self.enemy.max_hp}")
+        self.player_health.config(text=f"HP {self.player.health}/{self.player.max_hp}")
+
+
+class MainMenu(ttk.Frame):
+    """tk frame for the combat """
+
+    def __init__(self, parent):
+        super().__init__(parent)
+
+    pass
 
 
 class Dialogue(ttk.Frame):
+    """ Tkitner frame for npc dialogue """
+
     def __init__(self, parent):
         super().__init__(parent)
         self.player = parent.player
@@ -842,7 +1186,7 @@ class Dialogue(ttk.Frame):
 
 
 class Menu(ttk.Frame):
-    """main menu for player interaction"""
+    """menu for player interaction"""
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -921,7 +1265,7 @@ class Menu(ttk.Frame):
 
         if self.current_location.check_enemy():
             self.fight_button = ttk.Button(self, style="success.Outline.TButton", text=f"Fight",
-                                           command=lambda: self.parent.switch_frame(Dialogue))
+                                           command=lambda: self.parent.switch_frame(CombatScreen))
             self.fight_button.grid(row=5, ipadx=10, ipady=2, padx=4, column=2, pady=50, sticky="nsew", columnspan=1)
             self.buttons.append(self.fight_button)
 
@@ -1008,7 +1352,7 @@ class Menu(ttk.Frame):
             self.can_take()
         if self.current_location.check_enemy():
             self.fight_button = ttk.Button(self, style="success.Outline.TButton", text=f"Fight",
-                                           command=lambda: self.parent.switch_frame(Dialogue))
+                                           command=lambda: self.parent.switch_frame(CombatScreen))
             self.fight_button.grid(row=5, ipadx=10, ipady=2, padx=4, column=2, pady=50, sticky="nsew", columnspan=1)
             self.buttons.append(self.fight_button)
 
@@ -1018,16 +1362,20 @@ class StatusBar(ttk.Frame):
         super().__init__(parent)
         self.player = parent.player
         self.parent = parent
+        self.previous_frame = parent.previous_frame[-1]
         print("Current Frame:", parent.frame_name)
 
-        if parent.frame_name == "Menu":
+        frame_inv = ["Menu", "CombatScreen"]
+
+        if parent.frame_name in frame_inv:
             self.inv = ttk.Button(parent, text=f"Open {self.player.name}'s Inventory",
                                   command=lambda: self.switch_frame(Inventory))
+            parent.previous_frame.append(getattr(sys.modules[__name__], parent.frame_name))
             self.inv.grid(row=6, column=0, sticky="nsew")
 
-        if parent.frame_name != "Menu":
+        if parent.frame_name not in frame_inv:
             self.inv = ttk.Button(parent, text=f"Back to game", style="danger.Outline.TButton",
-                                  command=lambda: self.switch_frame(Menu))
+                                  command=lambda: self.switch_frame(self.previous_frame))
             self.inv.grid(row=6, column=0, sticky="nsew")
 
         self.grid(row=6, column=0, sticky="nsew")
@@ -1046,22 +1394,23 @@ class StatusBar(ttk.Frame):
 #         self.bg.grid(row=0, column=2, sticky="e")
 #         self.grid()
 
+# noinspection PyTypeChecker
+ITEMS = chain(Consumable.generate_from_file("items.txt"), Weapon.generate_from_file("items.txt"))
+ALL_ITEMS = [item for item in ITEMS]
+ENEMIES = Enemy.generate_from_file("enemy.txt")
+ALL_ENEMIES = [enemy for enemy in ENEMIES]
+
 
 def main():
     """ Main game loop """
     # test player
-    player = Player('test', 100, 10, 10, 10,
-                    10, "A", 0, [], None, None, [])
-    # noinspection PyTypeChecker
-    items = chain(Consumable.generate_from_file("items.txt"), Weapon.generate_from_file("items.txt"))
-    all_items = [item for item in items]
-    enemies = Enemy.generate_from_file("enemy.txt")
-    all_enemies = [enemy for enemy in enemies]
+    player = Player('test', 1, 0, 20, 10,
+                    3, "A", 0, [], None, None, [])
 
     locations = [Location(**loc) for loc in LOC_LIST]
     for location in locations:
-        location.link_item(all_items)
-        location.link_enemies(all_enemies)
+        location.link_item()
+        location.link_enemies()
 
     open('infosave.txt', 'w').close()
 
