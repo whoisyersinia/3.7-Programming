@@ -15,14 +15,13 @@ from tkinter import ttk
 from itertools import islice, chain
 import random
 import math
-
-# import json
+import json
 
 # from pprint import pprint
 
 # TODO finish map
-LOC_LIST = [{"name": "A", "desc": "Start", "dest": ["B", "C", "D"], "npc": "Test", "enemy": [1], "item": [3, 1]},
-            {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "Hi", "enemy": "", "item": [2]},
+LOC_LIST = [{"name": "A", "desc": "Start", "dest": ["B", "C", "D"], "npc": "Arthur", "enemy": [1], "item": [3, 1]},
+            {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "", "enemy": "", "item": [2]},
             {"name": "C", "desc": "Path 2", "dest": ["D"], "npc": "", "enemy": "", "item": [1]},
             {"name": "D", "desc": "End", "dest": ["A"], "npc": "", "enemy": "", "item": ""}]
 
@@ -722,6 +721,12 @@ class Location:
     def enemy(self, new_enemy):
         self._enemy = new_enemy
 
+    def link_npc(self):
+        """link npc name to npc object"""
+        for npc in ALL_NPCS:
+            if npc.name == self._npc:
+                self._npc = npc
+
     def link_item(self):
         """link item id to item object"""
         new_item_list = []
@@ -816,18 +821,19 @@ class Location:
 
 
 class NPC:
-    def __init__(self, npc_id, name, dialogue):
+    def __init__(self, name, dialogue_tree):
         """
         Initializes an instance of the NPC class.
-
-        Args:
-            npc_id (int): The id of the npc.
-            name (str): The name of the NPC.
-            dialogue (str): The dialogue of the NPC.
         """
-        self._npc_id = npc_id
-        self._name = name
-        self._dialogue = dialogue
+        self.name = name
+        self.dialogue_tree = dialogue_tree
+
+    @classmethod
+    def generate_from_file(cls, filename):
+        with open(filename, "r") as file:
+            dialogue_tree = json.load(file)
+            for npc_name, dialogue_tree in dialogue_tree.items():
+                yield NPC(npc_name, dialogue_tree)
 
 
 class App(tk.Tk):
@@ -850,7 +856,7 @@ class App(tk.Tk):
         self._frame = None
         self.statusbar = None
 
-        self.switch_frame(Menu)
+        self.switch_frame(MainMenu)
 
     def switch_frame(self, frame_class):
         """Destroys current frame and replaces it with a new one."""
@@ -1424,10 +1430,32 @@ class CombatScreen(ttk.Frame):
 
 
 class MainMenu(ttk.Frame):
-    """tk frame for the combat """
+    """tk frame for the main menu """
 
     def __init__(self, parent):
         super().__init__(parent)
+        self.font = "VCR OSD MONO"
+
+        self.columnconfigure(list(range(3)), weight=1, uniform="Silent_Creme")
+        self.rowconfigure(list(range(5)), weight=1)
+        self.rowconfigure(6, weight=3)
+
+        self.title = ttk.Label(text="Hello World!", font=(self.font, 40), style="danger.TLabel")
+        self.title.grid(row=0, column=0)
+
+        self.by = ttk.Label(text="by me", font=(self.font, 26), style="info.TLabel")
+        self.by.grid(row=1, column=0)
+
+        self.new_game = ttk.Button(text="new game", style="info.outline.TButton")
+        self.new_game.grid(row=3, column=0, pady=10)
+
+        self.load_game = ttk.Button(text="load game", style="info.outline.TButton")
+        self.load_game.grid(row=4, column=0, pady=10)
+
+        self.by = ttk.Label(text="Last Updated: April 2024", font=(self.font, 12), style="secondary.TLabel")
+        self.by.grid(row=5, column=0, pady=(100, 5))
+
+
 
     pass
 
@@ -1438,11 +1466,50 @@ class Dialogue(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
         self.player = parent.player
-        self.current_location = parent.current_location
+        self.locations = parent.locations
+        self.current_location = self.player.current_location(self.locations)
+        self.npc = self.current_location.npc
+        self.parent = parent
         self.grid(row=1, column=0, sticky="nsew")
         self.columnconfigure(list(range(3)), weight=1, uniform="Silent_Creme")
         self.rowconfigure(list(range(5)), weight=1)
         self.rowconfigure(6, weight=3)
+        self.info = tk.Text(self, height=10, relief="ridge", font="Helvetica", state="disabled")
+        self.info.grid(row=2, column=0, pady=(10, 20), columnspan=3)
+        self.update_info(f"You have engaged in conversation...\n")
+        self.current_buttons = []
+        self.current_node = self.npc.dialogue_tree
+        self.create_dialogue_options()
+
+    def create_dialogue_options(self):
+        """create the dialogue options"""
+        if self.current_buttons:
+            for b in self.current_buttons:
+                b.destroy()
+        dialogue_options = self.current_node.keys()
+
+        for i, option in enumerate(dialogue_options, 0):
+            button = ttk.Button(self, text=option, style="primary.TButton",
+                                command=lambda index=i: self.talk(dialogue_options, index))
+            button.grid(row=3+i, ipadx=10, ipady=2, padx=4, pady=10, column=0, sticky="nsew", columnspan=3)
+            self.current_buttons.append(button)
+
+    def talk(self, option, index):
+        """talk to the npc based on the option and index"""
+        selected_option = list(option)[index]
+        self.update_info(f"{self.player.name}: {selected_option}\n")
+        self.current_node = self.current_node[selected_option]
+        if isinstance(self.current_node, str):
+            self.update_info(f"{self.npc.name}: {self.current_node}\n")
+            self.current_node = self.npc.dialogue_tree
+        self.create_dialogue_options()
+
+    def update_info(self, content):
+        """update current status of combat"""
+        self.info.config(state="normal")
+        self.info.insert(tk.END, content)
+        self.info.config(state="disabled")
+        self.info.see("end")
 
     def create_widgets(self):
         pass
@@ -1630,7 +1697,7 @@ class StatusBar(ttk.Frame):
 
         frame_inv = ["Menu", "CombatScreen"]
 
-        if parent.frame_name != "GameOver":
+        if parent.frame_name != "GameOver" and parent.frame_name != "MainMenu":
             if parent.frame_name in frame_inv:
                 self.inv = ttk.Button(parent, text=f"Open {self.player.name}'s Inventory",
                                       command=lambda: self.switch_frame(Inventory))
@@ -1659,6 +1726,9 @@ SPELLS = chain(Buff.generate_from_file("spells.txt"), Heal.generate_from_file("s
 ALL_SPELLS = [spell for spell in SPELLS]
 ALL_ENEMIES = [enemy for enemy in ENEMIES]
 
+NPCS = NPC.generate_from_file("npc.json")
+ALL_NPCS = [npc for npc in NPCS]
+
 
 def main():
     """ Main game loop """
@@ -1671,6 +1741,7 @@ def main():
     for location in locations:
         location.link_item()
         location.link_enemies()
+        location.link_npc()
 
     open('infosave.txt', 'w').close()
 

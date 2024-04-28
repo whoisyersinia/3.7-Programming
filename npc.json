@@ -1,7 +1,15 @@
 {
-  "1": {},
-  "Unknown Voice": {
-
-  }
-
+    "Arthur":{
+      "hi": "Hi there! How can I help you?",
+      "bye": "Goodbye! Come back anytime.",
+      "services": {
+          "What services do you offer?": {
+              "repair": "We offer repair services for all sorts of equipment.",
+              "sales": "We have a wide range of products available for sale.",
+              "information": "We can provide information about our services and products.",
+              "other": "Please specify what you're looking for."
+          },
+          "other": "I'm sorry, I didn't understand that. Would you like to ask something else?"
+      }
+    }
 }
