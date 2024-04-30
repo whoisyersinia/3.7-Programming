@@ -20,10 +20,11 @@ import json
 # from pprint import pprint
 
 # TODO finish map
-LOC_LIST = [{"name": "A", "desc": "Start", "dest": ["B", "C", "D"], "npc": "Arthur", "enemy": [1], "item": [3, 1]},
-            {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "", "enemy": "", "item": [2]},
-            {"name": "C", "desc": "Path 2", "dest": ["D"], "npc": "", "enemy": "", "item": [1]},
-            {"name": "D", "desc": "End", "dest": ["A"], "npc": "", "enemy": "", "item": ""}]
+LOC_LIST = [
+    {"name": "A", "desc": "Start", "dest": ["B", "C", "D"], "npc": "Arthur", "enemy": [1], "item": [6], "key": ""},
+    {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "", "enemy": "", "item": [2], "key": 6},
+    {"name": "C", "desc": "Path 2", "dest": ["D"], "npc": "", "enemy": "", "item": [1], "key": ""},
+    {"name": "D", "desc": "End", "dest": ["A"], "npc": "", "enemy": "", "item": "", "key": ""}]
 
 
 class Character:
@@ -87,6 +88,10 @@ class Character:
         else:
             self._block = False
 
+    def get_coins(self, coins):
+        """add coins"""
+        self._coins += coins
+
     def get_xp(self, xp):
         """add xp"""
         self._xp += xp
@@ -108,7 +113,7 @@ class Character:
         if self._level == 1:
             xp_required = 1
         else:
-            xp_required = 100 + (self._level * 50)
+            xp_required = 100 + (self._level * 50)  # increase threshold depending on current level
         return int(xp_required)
 
     def link_spells(self):
@@ -122,8 +127,10 @@ class Character:
         self._spells = new_spell_list
 
     def use_spell(self, spell):
+        """uses the spell and updates character stats depending on the spell type"""
         if isinstance(spell, Buff):
             if self._buff_duration == 0:
+                # set buff durations and buff amount
                 if spell.attack > 0:
                     self._attack += spell.attack
                     self._buff_duration = spell.duration
@@ -134,6 +141,7 @@ class Character:
                     self.def_buff = spell.defence
             else:
                 return False
+        # if heal add heal amount to current health
         elif isinstance(spell, Heal):
             if self._health != self._max_hp:
                 old_health = self._health
@@ -147,6 +155,7 @@ class Character:
         return True
 
     def revert_spell(self):
+        """revert spell effects"""
         self._attack -= self.attk_buff
         self._defence -= self.def_buff
         self.attk_buff = 0
@@ -278,20 +287,9 @@ class Player(Character):
     def max_hp(self, new_max_hp):
         self._max_hp = new_max_hp
 
-    # def get_skills(self, skill):
-    #     """get skill objects"""
-    #     skill_list = []
-    #
-    #     for item in items:
-    #         if item.id in self._item:
-    #             new_item_list.append(item)
-    #
-    #     self._item = new_item_list
-    #
-
-    def current_location(self, locations):
+    def current_location(self):
         """take the current location and return it as an object from the locations list."""
-        for loc in locations:
+        for loc in LOCATIONS:
             if loc.name == self._location:
                 return loc
 
@@ -482,6 +480,7 @@ class Enemy(Character):
                 enemy_name = data[1].strip()
                 enemy_level = data[2].strip()
 
+                # randomises enemy stats depending on the range supplied by the enemy.txt file
                 xp_range = data[3].strip().split('(')[1].split(')')[0].split('-')
                 min_xp = int(xp_range[0].strip())
                 max_xp = int(xp_range[1].strip())
@@ -507,8 +506,10 @@ class Enemy(Character):
                 max_coins = int(coins_range[1].strip())
                 enemy_coins = random.randint(min_coins, max_coins)
 
+                # puts all the items into enemy inventory
                 enemy_inv = [item.strip() for item in data[8].strip().split(';')]
 
+                # uses the item_id to link with item object then append to enemy inventory
                 new_item_list = []
                 for i in range(len(ALL_ITEMS)):
                     for item_id in enemy_inv:
@@ -516,8 +517,11 @@ class Enemy(Character):
                             new_item_list.append(ALL_ITEMS[i])
 
                 enemy_inv = new_item_list
+
+                # gets the chance of getting an item from an enemy
                 enemy_chance = data[9].strip()
 
+                # uses the spell_id to link with spell object then append to the enemy spells
                 enemy_spells = [item.strip() for item in data[10].strip().split(';')]
                 new_spell_list = []
                 for i in range(len(ALL_SPELLS)):
@@ -527,11 +531,13 @@ class Enemy(Character):
 
                 enemy_spells = new_spell_list
 
+                # random number generator if player can get item from enemy inventory
                 if random.randint(1, int(enemy_chance)) == 1:
                     enemy_inv = random.choice(enemy_inv)
                 else:
                     enemy_inv = None
 
+                # returns the Enemy object one at a time
                 yield Enemy(enemy_id, enemy_name, enemy_level, enemy_xp, enemy_health, enemy_attack, enemy_defence,
                             enemy_coins, enemy_inv, enemy_health, enemy_spells)
 
@@ -612,6 +618,8 @@ class Item:
         #     return "armour"
         elif isinstance(self, Consumable):
             return "consumable"
+        elif isinstance(self, Key):
+            return "key"
 
 
 class Consumable(Item):
@@ -644,6 +652,20 @@ class Weapon(Item):
                 yield Weapon(*weapon.strip().split(","))
 
 
+class Key(Item):
+    """A class inheriting the item class to represent the keys in the game"""
+
+    def __init__(self, item_id, name, desc, value):
+        super().__init__(item_id, name, desc, value)
+
+    @classmethod
+    def generate_from_file(cls, in_file):
+        """ generate items from items.txt file """
+        with open(in_file, 'r') as keys:
+            for key in islice(keys, 5, 6):
+                yield Key(*key.strip().split(","))
+
+
 class Location:
     """A class representing a location in a game world.
 
@@ -661,13 +683,18 @@ class Location:
         destinations.
     """
 
-    def __init__(self, name, desc, dest, npc, enemy, item):
+    def __init__(self, name, desc, dest, npc, enemy, item, key):
         self._name = name
         self._desc = desc
         self._dest = dest
         self._npc = npc
         self._enemy = enemy
         self._item = item
+        self._key = key
+        # link ids to their respective objects
+        self.link_npc()
+        self.link_item()
+        self.link_enemies()
 
     @property
     def name(self):
@@ -721,6 +748,14 @@ class Location:
     def enemy(self, new_enemy):
         self._enemy = new_enemy
 
+    @property
+    def key(self):
+        return self._key
+
+    @key.setter
+    def key(self, new_key):
+        self._key = new_key
+
     def link_npc(self):
         """link npc name to npc object"""
         for npc in ALL_NPCS:
@@ -734,8 +769,11 @@ class Location:
             for item_id in self._item:
                 if item_id == ALL_ITEMS[i].id:
                     new_item_list.append(ALL_ITEMS[i])
+                if self._key == ALL_ITEMS[i].id:
+                    self._key = ALL_ITEMS[i]
 
         self._item = new_item_list
+
 
     def link_enemies(self):
         """link item id to item object"""
@@ -777,47 +815,52 @@ class Location:
             return True
         return False
 
-    def dest_name(self, locations):
-        """Maps the desc of the destinations to the id (name) based on the given map.
+    def link_dest(self):
+        """Maps the destinations to their location objects"""
+        new_dest_list = []
+        for i in range(len(LOCATIONS)):
+            for location_name in self._dest:
+                if location_name == LOCATIONS[i].name:
+                    new_dest_list.append(LOCATIONS[i])
+        self._dest = new_dest_list
 
-        Args:
-            locations (list): A list of locations objects.
+    @staticmethod
+    def dest_locked(dest):
+        """checks if destination is locked"""
+        for location in LOCATIONS:
+            if location.name == dest:
+                if location.key:
+                    return location.key
+        return False
 
-        Returns:
-            dict: A dict of destination names mapped to its id.
-        """
-        dest_dict = dict()
-        for location in locations:
-            if location.name in self._dest:
-                if location.name in dest_dict:
-                    dest_dict[location.name].append(location.desc)
-                else:
-                    dest_dict[location.name] = location.desc
 
-        return dest_dict
-
-    def print_location_info(self, dest_dict):
+    def print_location_info(self, dests):
         """Print the location information, including name, description, and possible destinations.
 
         Args:
-            dest_dict (dict): A dict of destinations.
+            dests (list): A list of destinations.
 
         Returns:
             str: The formatted location information.
         """
-        dest_list_names = [dest_desc for dest_desc in dest_dict.values()]
+
+        dest_list_names = [dest.desc for dest in dests if not dest.key]
+        locked_loc_names = [dest.desc for dest in dests if dest.key]  # compile a list of dest that are locked
 
         dest = ", ".join(dest_list_names)
 
-        if self.check_npc() and self.check_item():
-            return (f'You moved to {self.desc}.\nYou can move to {dest}.\nSomeone is waving at you!\n'
-                    f'There is an item here!\n\n')
-        elif self.check_item():
-            return f'You moved to {self.desc}.\nYou can move to {dest}.\nThere is an item here!\n\n'
-        elif self.check_npc():
-            return f'You moved to {self.desc}.\nYou can move to {dest}.\nSomeone is waving at you!\n\n'
-        else:
-            return f'You moved to {self.desc}.\nYou can move to {dest}.\n\n'
+        prompt = f"\nYou moved to {self.desc}.\nYou can move to {dest}.\n"
+        # prints the locations that are locked
+        if locked_loc_names:
+            lock_dest = ", ".join(locked_loc_names)
+            prompt = prompt + f"{lock_dest} is locked!\n"
+        if self.check_npc():
+            prompt = prompt + "Someone is waving at you!\n"
+        if self.check_item():
+            prompt = prompt + "There is an item here!\n"
+        if self.check_enemy():
+            prompt = prompt + "You sense an evil presence!\n"
+        return prompt
 
 
 class NPC:
@@ -839,14 +882,13 @@ class NPC:
 class App(tk.Tk):
     """ Main application gui """
 
-    def __init__(self, player, location):
+    def __init__(self, player):
         super().__init__()
         self.player = player
-        self.locations = location
         self.previous_frame = ["MainMenu"]
 
         self.style = tb.Style(theme="darkly")
-        self.geometry("600x600")
+        self.geometry("1200x600")  # change later?
         self.resizable(False, False)
         self.title("Hello World!")
         self.rowconfigure(0, weight=1)
@@ -856,7 +898,7 @@ class App(tk.Tk):
         self._frame = None
         self.statusbar = None
 
-        self.switch_frame(MainMenu)
+        self.switch_frame(Menu)
 
     def switch_frame(self, frame_class):
         """Destroys current frame and replaces it with a new one."""
@@ -906,6 +948,8 @@ class Inventory(ttk.Frame):
         self.columnconfigure(list(range(3)), weight=1, uniform="Silent_Creme")
         self.rowconfigure(list(range(5)), weight=1)
         self.rowconfigure(6, weight=3)
+
+        # labels
         self.name = None
         self.stats = None
         self.equipped_weapon = None
@@ -979,6 +1023,10 @@ class Inventory(ttk.Frame):
             elif item.get_item_type() == "armour":
                 pass
 
+            elif item.get_item_type() == "key":
+                self.create_item_info_widget(item, row_num, col_num)
+                col_num += 1
+
             elif item.get_item_type() == "consumable":
                 uses = self.cons_list.count(item.name)
                 if item.name not in duplicate_consumables_widgets:
@@ -1047,6 +1095,7 @@ class Inventory(ttk.Frame):
                                                   command=lambda items=item: self.remove_item(items))
             self.destroy_item_button.grid(row=16 + row_num, column=col_num, pady=(0, 50))
             self.item_widget.append(self.destroy_item_button)
+
 
     def destroy_item_widget(self):
         """destroy widgets item widgets"""
@@ -1127,9 +1176,8 @@ class CombatScreen(ttk.Frame):
 
     def __init__(self, parent):
         super().__init__(parent)
-        self.locations = parent.locations
         self.player = parent.player
-        self.current_location = self.player.current_location(self.locations)
+        self.current_location = self.player.current_location()
         self.parent = parent
         self.enemy = self.current_location.enemy[0]
         self.turn = 0
@@ -1159,12 +1207,15 @@ class CombatScreen(ttk.Frame):
         self.fight = tk.Label(self, text=f"LV.{self.enemy.level} {self.enemy.name}", font=(self.font, 24),
                               fg='#FF0000')
         self.spell = None
-        self.info = tk.Text(self, height=10, relief="ridge", font="Helvetica", state="disabled")
-        self.info.grid(row=2, column=0, pady=(10, 20), columnspan=3)
+        self.info = tk.Text(self, height=10, relief="ridge", font=("Helvetica", 16), state="disabled")
+        self.info.grid(row=2, column=0, pady=(10, 20), columnspan=3, sticky="nsew")
 
         self.create_widgets()
 
     def create_widgets(self):
+        """creates the widgets for the combat screen"""
+
+        # destroy the current widgets
         for b in self.spells_button:
             b.destroy()
 
@@ -1215,8 +1266,9 @@ class CombatScreen(ttk.Frame):
         self.spells.grid(row=7, column=1, sticky="nsew", padx=5, pady=50)
 
     def open_spells_menu(self):
+        """open spells menu which displays all the spells the player can use"""
         for widget in self.default_menu:
-            widget.destroy()
+            widget.destroy()  # destroys all widgets that's in the current menu
 
         self.actions.config(text="Spellbook")
         self.spells.config(text="Go back", command=lambda: self.create_widgets())
@@ -1254,20 +1306,19 @@ class CombatScreen(ttk.Frame):
             col_num += 1
 
     def use_spell(self, spell):
+        """use spell which checks wht type of spell was cast and update combat info based on that"""
         if self.player.use_spell(spell):
             self.update_info(f"You used {spell.name}.\n\n")
             spell.cooldown = spell.max_cd
-            if not self.is_dead(self.enemy):
-                if isinstance(spell, Buff):
-                    if spell.attack > 0:
-                        self.player_attack.config(text=f"{self.player.attack}(+{spell.attack}) ATK",
-                                                  style="danger.TLabel")
-                    if spell.defence > 0:
-                        self.player_defence.config(text=f"{self.player.defence}(+{spell.defence}) DEF",
-                                                   style="info.TLabel")
-                self.update_widgets()
-                self.enemy_action()
-                self.create_widgets()
+            self.enemy_is_dead()
+            if isinstance(spell, Buff):
+                if spell.attack > 0:
+                    self.player_attack.config(text=f"{self.player.attack}(+{spell.attack}) ATK",
+                                              style="danger.TLabel")
+                if spell.defence > 0:
+                    self.player_defence.config(text=f"{self.player.defence}(+{spell.defence}) DEF",
+                                               style="info.TLabel")
+            self.create_widgets()
         else:
             if isinstance(spell, Buff):
                 self.update_info(f"Already using a buff!\n")
@@ -1275,17 +1326,21 @@ class CombatScreen(ttk.Frame):
     def end_combat(self):
         """end combat and get xp"""
         if not self.player.get_xp(self.enemy.xp):
+            self.player.get_coins(self.enemy.coins)
             self.parent.update_info_widget(
-                f"Successfully defeated {self.enemy.name}!\nYou have gained {self.enemy.xp} XP!")
+                f"Successfully defeated {self.enemy.name}!\nYou have gained {self.enemy.xp} XP!\n"
+                f"You got {self.enemy.coins}\n")
         else:
-            if self.player.level % 5 != 0:
+            if self.player.level % 5 != 0:  # change print text depending on what level the player leveled up
                 self.parent.update_info_widget(f"Successfully defeated {self.enemy.name}!\n"
+                                               f"You got {self.enemy.coins} coins!\n"
                                                f"You have gained {self.enemy.xp} XP!\n\n"
                                                f"You have leveled up!!!\n"
                                                f"You are now Level {self.player.level}!\n"
                                                f"Attack and Defence have increased!\n")
             else:
                 self.parent.update_info_widget(f"Successfully defeated {self.enemy.name}!\n"
+                                               f"You got {self.enemy.coins} coins!\n"
                                                f"You have gained {self.enemy.xp} XP!\n\n"
                                                f"You have leveled up!!!\n"
                                                f"You are now Level {self.player.level}!\n"
@@ -1300,13 +1355,21 @@ class CombatScreen(ttk.Frame):
         self.current_location.enemy.remove(self.enemy)
         self.parent.switch_frame(Menu)
 
-    @staticmethod
-    def is_dead(target):
-        """check if the target (enemy or player) is dead"""
-        if target.is_alive():
-            return False
+    def player_is_dead(self):
+        """checks if player is dead"""
+        if self.player.is_alive():
+            self.add_turn()
+            self.update_widgets()  # combat continues one more turn
         else:
-            return True
+            self.parent.switch_frame(GameOver)  # game over screen once dead
+
+    def enemy_is_dead(self):
+        """check if the (enemy) is dead"""
+        if self.enemy.is_alive():
+            self.enemy_action()  # enemy attacks
+            self.update_widgets()
+        else:
+            self.end_combat()  # if dead end combat
 
     def update_info(self, content):
         """update current status of combat"""
@@ -1337,10 +1400,11 @@ class CombatScreen(ttk.Frame):
     def enemy_spell(self):
         """enemy spell logic"""
         for spell in self.enemy.spells:
-            if spell.cooldown <= 0:
+            if spell.cooldown <= 0:  # cast enemy spell when the cooldown is 0
                 self.enemy.use_spell(spell)
                 spell.cooldown = spell.max_cd
 
+                # updates text
                 if not isinstance(spell, Buff):
                     pass
                 else:
@@ -1358,30 +1422,26 @@ class CombatScreen(ttk.Frame):
         self.enemy_spell()
         damage = self.player.take_damage(self.enemy.attack)
         self.update_info(f"{self.enemy.name} attacked you for {damage} damage.\n\n")
-        if not self.is_dead(self.player):
-            self.add_turn()
-            self.update_widgets()
-        else:
-            self.parent.switch_frame(GameOver)
+        # checks if player is dead
+        self.player_is_dead()
 
     def combat_basic_attack(self):
         """perform basic attack"""
         damage = self.enemy.take_damage(self.player.attack)
         self.update_info(f"You attacked {self.enemy.name} for {damage} damage.\n\n")
-        if not self.is_dead(self.enemy):
-            self.enemy_action()
-            self.update_widgets()
+        self.enemy_is_dead()
 
     def combat_block(self):
         """perform block - halves damage"""
         self.player.action_block()
         self.update_info(f"You are now blocking!\n\n")
-        if not self.is_dead(self.enemy):
-            self.player.action_block()
-            self.update_widgets()
-            self.enemy_action()
+        self.enemy_is_dead()
+        self.player.action_block()  # disable block
 
     def buff_active(self):
+        """if buff is active change the labels to show that"""
+
+        # if buff is active
         if self.player.buff_duration > 0:
             for b in self.spells_button:
                 b.destroy()
@@ -1435,6 +1495,7 @@ class MainMenu(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
         self.font = "VCR OSD MONO"
+        self.main_menu_widgets = []
 
         self.columnconfigure(list(range(3)), weight=1, uniform="Silent_Creme")
         self.rowconfigure(list(range(5)), weight=1)
@@ -1442,22 +1503,36 @@ class MainMenu(ttk.Frame):
 
         self.title = ttk.Label(text="Hello World!", font=(self.font, 40), style="danger.TLabel")
         self.title.grid(row=0, column=0)
+        self.main_menu_widgets.append(self.title)
 
         self.by = ttk.Label(text="by me", font=(self.font, 26), style="info.TLabel")
         self.by.grid(row=1, column=0)
 
-        self.new_game = ttk.Button(text="new game", style="info.outline.TButton")
+        self.new_game = ttk.Button(text="new game", style="info.outline.TButton",
+                                   command=lambda: parent.switch_frame(Menu))
         self.new_game.grid(row=3, column=0, pady=10)
+        self.main_menu_widgets.append(self.new_game)
 
         self.load_game = ttk.Button(text="load game", style="info.outline.TButton")
         self.load_game.grid(row=4, column=0, pady=10)
+        self.main_menu_widgets.append(self.load_game)
 
         self.by = ttk.Label(text="Last Updated: April 2024", font=(self.font, 12), style="secondary.TLabel")
         self.by.grid(row=5, column=0, pady=(100, 5))
+        self.main_menu_widgets.append(self.by)
+
+    def new_game(self):
+        for w in self.main_menu_widgets:
+            w.destroy()
 
 
+class NewGame(ttk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.font = "VCR OSD MONO"
 
-    pass
+        self.title = ttk.Label(text="Dear Lord!", font=(self.font, 40), style="danger.TLabel")
+        self.title.grid(row=0, column=0)
 
 
 class Dialogue(ttk.Frame):
@@ -1466,8 +1541,7 @@ class Dialogue(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
         self.player = parent.player
-        self.locations = parent.locations
-        self.current_location = self.player.current_location(self.locations)
+        self.current_location = self.player.current_location()
         self.npc = self.current_location.npc
         self.parent = parent
         self.grid(row=1, column=0, sticky="nsew")
@@ -1491,7 +1565,7 @@ class Dialogue(ttk.Frame):
         for i, option in enumerate(dialogue_options, 0):
             button = ttk.Button(self, text=option, style="primary.TButton",
                                 command=lambda index=i: self.talk(dialogue_options, index))
-            button.grid(row=3+i, ipadx=10, ipady=2, padx=4, pady=10, column=0, sticky="nsew", columnspan=3)
+            button.grid(row=3 + i, ipadx=10, ipady=2, padx=4, pady=10, column=0, sticky="nsew", columnspan=3)
             self.current_buttons.append(button)
 
     def talk(self, option, index):
@@ -1520,9 +1594,8 @@ class Menu(ttk.Frame):
 
     def __init__(self, parent):
         super().__init__(parent)
-        self.locations = parent.locations
         self.player = parent.player
-        self.current_location = self.player.current_location(self.locations)
+        self.current_location = self.player.current_location()
 
         self.parent = parent
 
@@ -1537,27 +1610,29 @@ class Menu(ttk.Frame):
         self.info_location = tk.Label(self, text=f"You are in {self.current_location.desc}", font="Helvetica")
         self.info_location.grid(row=1, column=0, sticky="nsew", columnspan=3)
 
-        self.info = tk.Text(self, height=10, relief="ridge", font="Helvetica", state="disabled")
-        self.info.grid(row=2, column=0, pady=(10, 20), columnspan=3)
+        self.info = tk.Text(self, height=10, relief="ridge", font=("Helvetica", 16), state="disabled")
+        self.info.grid(row=2, column=0, pady=(10, 20), columnspan=3, sticky="nsew")
 
-        self.dest = self.current_location.dest_name(self.locations)
         self.take_button = None
+        self.move_header = ttk.Label(self, text="Where to?", font="Helvetica", style="info.TLabel")
         self.take_dropdown = None
         self.buttons = []
-        self.move_header = ttk.Label(self, text="Where to?", font="Helvetica", style="info.TLabel")
         self.move_header.grid(row=3, column=0, pady=(0, 5), columnspan=3)
 
         col_num = 0
-        for i in range(len(self.dest)):
+        for i in range(len(self.current_location.dest)):
             if i == 0:
                 col_num = 1
             else:
                 col_num = 0
 
-        for dest_id, dest_desc in self.dest.items():
-            self.move_button = ttk.Button(self, style="primary.Outline.TButton", text=f"Move to {dest_desc}",
-                                          command=lambda dest=dest_id: self.move(dest))
-            self.move_button.grid(row=4, ipadx=10, ipady=2, padx=4, pady=50, column=col_num, sticky="nsew",
+        for dest in self.current_location.dest:
+            self.move_button = ttk.Button(self, style="primary.Outline.TButton", text=f"Move to {dest.desc}",
+                                          command=lambda destination=dest: self.move(destination))
+            if self.if_locked(dest.name):
+                self.move_button.config(state="disabled", text=f"{dest.desc} is locked!")
+
+            self.move_button.grid(row=4, ipadx=10, ipady=2, padx=4, pady=(0, 50), column=col_num, sticky="nsew",
                                   columnspan=1)
             col_num += 1
             self.buttons.append(self.move_button)
@@ -1599,54 +1674,79 @@ class Menu(ttk.Frame):
             self.fight_button.grid(row=5, ipadx=10, ipady=2, padx=4, column=2, pady=50, sticky="nsew", columnspan=1)
             self.buttons.append(self.fight_button)
 
+    def update_info(self, content):
+        """update current status info"""
+        self.info.config(state="normal")
+        self.info.insert(tk.END, content)
+        self.info.config(state="disabled")
+        self.info.see("end")  # automatically goes to bottom
+
     def can_take(self):
+        """checks if player can take"""
         if self.player.check_max_inv():
             if self.take_button:
                 self.take_button.config(state="disabled", text="Max inventory!")
             else:
                 self.take_dropdown.config(state="disabled", text="Max inventory!")
 
+    def if_locked(self, dest_name):
+        """ checks if the player has key for locked location """
+        key = self.current_location.dest_locked(dest_name)
+        if key:  # if a key is required
+            if key in self.player.inv:  # if the key is in player_inv
+                return False
+        else:
+            return False
+        return True
+
+    def unlock(self):
+        """unlocks locked location and removes key from inv"""
+        key = self.current_location.key
+        if key:
+            self.update_info(f"Unlocked {self.current_location.desc} with {self.current_location.key.name}!")
+            self.player.inv.remove(key)
+            self.current_location.key = None
+        else:
+            return False
+
+
     def move(self, dest):
-        """moves the player"""
-        self.player.location = dest
-        self.current_location = self.player.current_location(self.locations)
-        self.info.grid(row=2)
+        """moves the player to destination"""
+        self.player.location = dest.name
+        self.current_location = self.player.current_location()
+        self.unlock()
         self.label_location.config(text=f"Location: {self.player.location}")
         self.info_location.config(text=f"You are in {self.current_location.desc}")
-        self.dest = self.current_location.dest_name(self.locations)
-        self.info.config(state="normal")
-        self.info.insert(tk.END, self.current_location.print_location_info(self.dest))
-        self.info.config(state="disabled")
-        self.info.see("end")
-
+        self.update_info(self.current_location.print_location_info(self.current_location.dest))
         self.update_widgets()
 
     def take_item(self, item):
+        """take item"""
         item_name = self.player.take_item(item, self.current_location)
         add_item_prompt = f"Added {item_name} to inventory!\n\n"
-        self.info.config(state="normal")
-        self.info.insert(tk.END, add_item_prompt)
-        self.info.config(state="disabled")
-        self.info.see("end")
+        self.update_info(add_item_prompt)
         self.update_widgets()
 
     def update_widgets(self):
-        """update widgets"""
+        """update widgets to current info"""
         for b in self.buttons:
             b.destroy()
         self.buttons.clear()
 
         col_num = 0
-        for i in range(len(self.dest)):
+        for i in range(len(self.current_location.dest)):
             if i == 0:
                 col_num = 1
             else:
                 col_num = 0
 
-        for dest_id, dest_desc in self.dest.items():
-            self.move_button = ttk.Button(self, style="primary.Outline.TButton", text=f"Move to {dest_desc}",
-                                          command=lambda dest=dest_id: self.move(dest))
-            self.move_button.grid(row=4, ipadx=10, ipady=2, padx=4, pady=50, column=col_num, sticky="nsew",
+        for dest in self.current_location.dest:
+            self.move_button = ttk.Button(self, style="primary.Outline.TButton", text=f"Move to {dest.desc}",
+                                          command=lambda destination=dest: self.move(destination))
+            if self.if_locked(dest.name):
+                self.move_button.config(state="disabled", text=f"{dest.desc} is locked!")
+
+            self.move_button.grid(row=4, ipadx=10, ipady=2, padx=4, pady=(0, 50), column=col_num, sticky="nsew",
                                   columnspan=1)
             col_num += 1
             self.buttons.append(self.move_button)
@@ -1718,7 +1818,8 @@ class StatusBar(ttk.Frame):
 
 
 # noinspection PyTypeChecker
-ITEMS = chain(Consumable.generate_from_file("items.txt"), Weapon.generate_from_file("items.txt"))
+ITEMS = chain(Consumable.generate_from_file("items.txt"), Weapon.generate_from_file("items.txt"),
+              Key.generate_from_file("items.txt"))
 ALL_ITEMS = [item for item in ITEMS]
 ENEMIES = Enemy.generate_from_file("enemy.txt")
 # noinspection PyTypeChecker
@@ -1728,6 +1829,9 @@ ALL_ENEMIES = [enemy for enemy in ENEMIES]
 
 NPCS = NPC.generate_from_file("npc.json")
 ALL_NPCS = [npc for npc in NPCS]
+LOCATIONS = [Location(**loc) for loc in LOC_LIST]
+for loc in LOCATIONS:
+    loc.link_dest()
 
 
 def main():
@@ -1737,15 +1841,9 @@ def main():
                     3, "A", 0, [], None, None, [1, 2, 8])
     player.link_spells()
 
-    locations = [Location(**loc) for loc in LOC_LIST]
-    for location in locations:
-        location.link_item()
-        location.link_enemies()
-        location.link_npc()
-
     open('infosave.txt', 'w').close()
 
-    app = App(player, locations)
+    app = App(player)
     app.mainloop()
 
 
