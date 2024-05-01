@@ -1,8 +1,7 @@
 1,Novice Attack Buff Spell,+5 Attack for 2 turns,3,5,0,2,3
 2,Novice Defence Buff Spell,+5 Defence for 2 turns,3,0,5,2,3
 3,Monster Attack Buff Spell,+2 Attack for 2 turns (Only Works for Monsters),3,2,0,2,3
-
-
-
-
-8,Novice Heal Spell,Heals 5HP,3,20,3
+4,Monster Power Buff Spell,+3 Attack and Defence for 2 turns (Only Works for Monsters),4,3,3,2,3
+8,Novice Heal Spell,Heals 10HP,3,10,3
+9,Intermediate Heal Spell,Heals 20HP,3,20,3
+10,Advanced Heal Spell,Heals 30HP,3,30,3

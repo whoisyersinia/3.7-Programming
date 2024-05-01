@@ -21,7 +21,8 @@ import json
 
 # TODO finish map
 LOC_LIST = [
-    {"name": "A", "desc": "Start", "dest": ["B", "C", "D"], "npc": "Arthur", "enemy": [1], "item": [6], "key": ""},
+    {"name": "A", "desc": "Start", "dest": ["B", "C", "D"], "npc": "Bob - Floor One Shop", "enemy": [2], "item": [6],
+     "key": ""},
     {"name": "B", "desc": "Path", "dest": ["C", "D"], "npc": "", "enemy": "", "item": [2], "key": 6},
     {"name": "C", "desc": "Path 2", "dest": ["D"], "npc": "", "enemy": "", "item": [1], "key": ""},
     {"name": "D", "desc": "End", "dest": ["A"], "npc": "", "enemy": "", "item": "", "key": ""}]
@@ -113,7 +114,7 @@ class Character:
         if self._level == 1:
             xp_required = 1
         else:
-            xp_required = 100 + (self._level * 50)  # increase threshold depending on current level
+            xp_required = 50 + (self._level * 25)  # increase threshold depending on current level
         return int(xp_required)
 
     def link_spells(self):
@@ -187,7 +188,7 @@ class Player(Character):
         self._weapon = weapon
         self._armour = armour
         self._location = location
-        self.max_inv_size = 6
+        self.max_inv_size = 9
         # xp
         # luck
 
@@ -245,7 +246,7 @@ class Player(Character):
 
     @coins.setter
     def coins(self, new_coins):
-        self._inv = new_coins
+        self._coins = new_coins
 
     @property
     def inv(self):
@@ -381,9 +382,10 @@ class Player(Character):
 
 
 class Enemy(Character):
-    def __init__(self, enemy_id, name, level, xp, health, attack, defence, coins, inv, max_hp, spells):
+    def __init__(self, enemy_id, name, level, xp, health, attack, defence, coins, inv, max_hp, spells, boss):
         super().__init__(name, level, xp, health, attack, defence, coins, inv, max_hp, spells)
         self._id = int(enemy_id)
+        self._boss = boss
 
     @property
     def id(self):
@@ -469,6 +471,14 @@ class Enemy(Character):
     def spells(self, new_spells):
         self._spells = new_spells
 
+    @property
+    def boss(self):
+        return self._boss
+
+    @boss.setter
+    def boss(self, new_boss):
+        self._boss = new_boss
+
     @classmethod
     def generate_from_file(cls, in_file):
         """ generate enemies from enemy.csv file """
@@ -531,6 +541,12 @@ class Enemy(Character):
 
                 enemy_spells = new_spell_list
 
+                enemy_boss = data[11].strip()
+                if int(enemy_boss) == 1:  # checks if enemy is boss
+                    enemy_boss = True
+                else:
+                    enemy_boss = False
+
                 # random number generator if player can get item from enemy inventory
                 if random.randint(1, int(enemy_chance)) == 1:
                     enemy_inv = random.choice(enemy_inv)
@@ -539,7 +555,7 @@ class Enemy(Character):
 
                 # returns the Enemy object one at a time
                 yield Enemy(enemy_id, enemy_name, enemy_level, enemy_xp, enemy_health, enemy_attack, enemy_defence,
-                            enemy_coins, enemy_inv, enemy_health, enemy_spells)
+                            enemy_coins, enemy_inv, enemy_health, enemy_spells, enemy_boss)
 
 
 class Spells:
@@ -597,7 +613,7 @@ class Heal(Spells):
     def generate_from_file(cls, in_file):
         """ generate spells from spells.txt file """
         with open(in_file, 'r') as heals:
-            for heal in islice(heals, 7, 8):
+            for heal in islice(heals, 4, 7):
                 yield Heal(*heal.strip().split(","))
 
 
@@ -774,7 +790,6 @@ class Location:
 
         self._item = new_item_list
 
-
     def link_enemies(self):
         """link item id to item object"""
         new_enemy_list = []
@@ -833,7 +848,6 @@ class Location:
                     return location.key
         return False
 
-
     def print_location_info(self, dests):
         """Print the location information, including name, description, and possible destinations.
 
@@ -879,6 +893,34 @@ class NPC:
                 yield NPC(npc_name, dialogue_tree)
 
 
+class Shop(NPC):
+    """Initializes an instance of the Shop class which inherits from npc"""
+
+    def __init__(self, name, dialogue_tree, shop_stock):
+        super().__init__(name, dialogue_tree)
+        """
+        Initializes an instance of the NPC class.
+        """
+        self.name = name
+        self.dialogue_tree = dialogue_tree
+        self.shop_stock = shop_stock
+
+    @classmethod
+    def generate_from_file(cls, filename):
+        with open(filename, "r") as file:
+            dialogue_tree = json.load(file)
+            npc_dialogue = random.choice(["We have great items!", "Welcome!", "I hope you have money"])
+            for npc_name, shop_stock in dialogue_tree.items():
+                # link the item_ids to their respective item classes
+                linked_shop_stock = dict()
+                for str_item_id, item_price in shop_stock.items():
+                    item_id = int(str_item_id)
+                    for i in range(len(ALL_ITEMS)):
+                        if item_id == ALL_ITEMS[i].id:
+                            linked_shop_stock[ALL_ITEMS[i]] = item_price
+                yield Shop(npc_name, npc_dialogue, linked_shop_stock)
+
+
 class App(tk.Tk):
     """ Main application gui """
 
@@ -888,7 +930,7 @@ class App(tk.Tk):
         self.previous_frame = ["MainMenu"]
 
         self.style = tb.Style(theme="darkly")
-        self.geometry("1200x600")  # change later?
+        self.geometry("1200x800")  # change later?
         self.resizable(False, False)
         self.title("Hello World!")
         self.rowconfigure(0, weight=1)
@@ -898,7 +940,7 @@ class App(tk.Tk):
         self._frame = None
         self.statusbar = None
 
-        self.switch_frame(Menu)
+        self.switch_frame(Store)
 
     def switch_frame(self, frame_class):
         """Destroys current frame and replaces it with a new one."""
@@ -965,6 +1007,8 @@ class Inventory(ttk.Frame):
         self.item_value = None
         self.no_item_msg = None
         self.destroy_item_button = None
+        self.spells_list = [spell.name for spell in self.player.spells]
+        self.spell = ", ".join(self.spells_list)
         self.item_widget = []
         self.cons_list = [item.name for item in self.player.inv if isinstance(item, Consumable)]
         self.create_widgets()
@@ -977,7 +1021,9 @@ class Inventory(ttk.Frame):
         self.name.grid(row=0, column=0, columnspan=3, pady=(0, 10))
 
         self.stats = ttk.Label(self,
-                               text=f"XP {self.player.xp}/{self.player.xp_required()}  | HP {self.player.health}/{self.player.max_hp} | Attack: {self.player.attack} | Defence: {self.player.defence} | {self.player.coins} coins.",
+                               text=f"XP {self.player.xp}/{self.player.xp_required()}  | "
+                                    f"HP {self.player.health}/{self.player.max_hp} | Attack: {self.player.attack} | "
+                                    f"Defence: {self.player.defence} | {self.player.coins} coins.",
                                font="Apple 15")
         self.stats.grid(row=1, column=0, columnspan=3)
 
@@ -994,7 +1040,8 @@ class Inventory(ttk.Frame):
         else:
             self.equipped_armour = ttk.Label(self, text=f"Armour: Leisure Club Hoodie")
         self.equipped_armour.grid(row=4, column=0, columnspan=3)
-        self.skills = ttk.Label(self, text=f"Skills: {self.player.spells[0].name}")
+
+        self.skills = ttk.Label(self, text=f"Spells: {self.spell}")
         self.skills.grid(row=5, column=0, columnspan=3)
 
         ttk.Separator(self, orient='horizontal').grid(row=10, column=0, columnspan=3, sticky="nsew", pady=(10, 3))
@@ -1096,7 +1143,6 @@ class Inventory(ttk.Frame):
             self.destroy_item_button.grid(row=16 + row_num, column=col_num, pady=(0, 50))
             self.item_widget.append(self.destroy_item_button)
 
-
     def destroy_item_widget(self):
         """destroy widgets item widgets"""
         for widget in self.item_widget:
@@ -1145,7 +1191,7 @@ class Inventory(ttk.Frame):
         """updates the current state of widgets"""
         self.stats.config(text=f"Level: ... | {self.player.health} HP | Attack: {self.player.attack} | "
                                f"Defence: {self.player.defence} | {self.player.coins} coins.")
-        self.skills.config(text=f"Skills: {self.player.spells[0]}")
+        self.skills.config(text=f"Spells: {self.spell}")
         if self.player.weapon:
             self.equipped_weapon.config(text=f"Weapon: {self.player.weapon.name}")
         else:
@@ -1276,6 +1322,7 @@ class CombatScreen(ttk.Frame):
         col_num = 0
 
         for spell in self.player.spells:
+            # configure grid
             if col_num == 0:
                 row_num = 0
             elif col_num % 3 == 0:
@@ -1290,11 +1337,12 @@ class CombatScreen(ttk.Frame):
                 if isinstance(spell, Buff):
                     self.spell.config(state="disabled")
 
+            # if player already at max hp disabled button
             if self.player.max_hp == self.player.health:
                 if isinstance(spell, Heal):
                     self.spell.config(state="disabled")
 
-            if spell.cooldown > 0:
+            if spell.cooldown > 0:  # spell on cooldown disable button
                 self.spell.config(state="disabled", text=f"{spell.name}\n"
                                                          f"{spell.cooldown} cooldown\n"
                                                          f"{spell.description}")
@@ -1308,16 +1356,21 @@ class CombatScreen(ttk.Frame):
     def use_spell(self, spell):
         """use spell which checks wht type of spell was cast and update combat info based on that"""
         if self.player.use_spell(spell):
-            self.update_info(f"You used {spell.name}.\n\n")
+            self.update_info(f"You used {spell.name}.\n")
             spell.cooldown = spell.max_cd
-            self.enemy_is_dead()
             if isinstance(spell, Buff):
                 if spell.attack > 0:
                     self.player_attack.config(text=f"{self.player.attack}(+{spell.attack}) ATK",
                                               style="danger.TLabel")
+                    self.update_info(f"Increased ATK by {spell.attack} for {spell.duration} turns!\n\n")
+
                 if spell.defence > 0:
                     self.player_defence.config(text=f"{self.player.defence}(+{spell.defence}) DEF",
                                                style="info.TLabel")
+                    self.update_info(f"Increased DEF by {spell.attack} for {spell.duration} turns!\n\n")
+            if isinstance(spell, Heal):
+                self.update_info(f"Healed for {spell.health}! HP\n\n")
+
             self.create_widgets()
         else:
             if isinstance(spell, Buff):
@@ -1496,43 +1549,108 @@ class MainMenu(ttk.Frame):
         super().__init__(parent)
         self.font = "VCR OSD MONO"
         self.main_menu_widgets = []
+        self.parent = parent
 
         self.columnconfigure(list(range(3)), weight=1, uniform="Silent_Creme")
-        self.rowconfigure(list(range(5)), weight=1)
+        self.rowconfigure(list(range(6)), weight=1)
         self.rowconfigure(6, weight=3)
+        self.grid(row=1, column=0, sticky="nsew")
 
-        self.title = ttk.Label(text="Hello World!", font=(self.font, 40), style="danger.TLabel")
-        self.title.grid(row=0, column=0)
+        self.title = ttk.Label(self, text="Hello World!", font=(self.font, 40), style="danger.TLabel")
+        self.title.grid(row=0, column=1)
         self.main_menu_widgets.append(self.title)
 
-        self.by = ttk.Label(text="by me", font=(self.font, 26), style="info.TLabel")
-        self.by.grid(row=1, column=0)
-
-        self.new_game = ttk.Button(text="new game", style="info.outline.TButton",
-                                   command=lambda: parent.switch_frame(Menu))
-        self.new_game.grid(row=3, column=0, pady=10)
-        self.main_menu_widgets.append(self.new_game)
-
-        self.load_game = ttk.Button(text="load game", style="info.outline.TButton")
-        self.load_game.grid(row=4, column=0, pady=10)
-        self.main_menu_widgets.append(self.load_game)
-
-        self.by = ttk.Label(text="Last Updated: April 2024", font=(self.font, 12), style="secondary.TLabel")
-        self.by.grid(row=5, column=0, pady=(100, 5))
+        self.by = ttk.Label(self, text="by me", font=(self.font, 26), style="info.TLabel")
+        self.by.grid(row=1, column=1)
         self.main_menu_widgets.append(self.by)
 
-    def new_game(self):
+        self.new_game = ttk.Button(self, text="new game", style="info.outline.TButton",
+                                   command=lambda: self.create_new_game())
+        self.new_game.grid(row=3, column=1, pady=10)
+        self.main_menu_widgets.append(self.new_game)
+
+        self.load_game = ttk.Button(self, text="load game", style="info.outline.TButton")
+        self.load_game.grid(row=4, column=1, pady=10)
+        self.main_menu_widgets.append(self.load_game)
+
+        self.last_updated = ttk.Label(self, text="Last Updated: April 2024", font=(self.font, 12),
+                                      style="secondary.TLabel")
+        self.last_updated.grid(row=5, column=1, pady=(200, 5))
+        self.main_menu_widgets.append(self.last_updated)
+
+    def create_new_game(self):
         for w in self.main_menu_widgets:
             w.destroy()
+            self.parent.switch_frame(NewGame)
 
 
 class NewGame(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
+        self.parent = None
         self.font = "VCR OSD MONO"
+        self.player_name = None
+        self.columnconfigure(list(range(3)), weight=1, uniform="Silent_Creme")
+        self.rowconfigure(list(range(3)), weight=1)
+        self.current_question = []
 
-        self.title = ttk.Label(text="Dear Lord!", font=(self.font, 40), style="danger.TLabel")
-        self.title.grid(row=0, column=0)
+        self.new_game = ttk.Label(self, text="What is your name?", font=(self.font, 40), style="danger.TLabel")
+        self.new_game.grid(row=0, column=0, pady=(0, 50), columnspan=3)
+        self.current_question.append(self.new_game)
+
+        self.name = ttk.Entry(self, style="danger.TEntry", width=30)
+        self.name.grid(row=1, column=1)
+        self.current_question.append(self.name)
+
+        self.submit = ttk.Button(self, style="danger.Outline.TButton", text="Confirm",
+                                 command=lambda: self.name_confirm())
+        self.submit.grid(row=2, column=1, pady=(10, 200))
+        self.current_question.append(self.submit)
+
+    def name_confirm(self):
+        """checks the name if valid and goes to the next question"""
+        self.player_name = self.name.get()
+        if not self.player_name:
+            self.new_game.config(text="Hey, put your actual name!")
+        elif len(self.player_name) > 15:
+            self.new_game.config(text="Name too long!")
+        elif len(self.player_name) == 1:
+            self.new_game.config(text="Name too short!")
+        else:
+            for w in self.current_question:
+                w.destroy()
+            self.current_question.clear()
+            self.mage_or_warrior()
+
+    def mage_or_warrior(self):
+        """changes the stats"""
+        self.new_game = ttk.Label(self, text=f"{self.player_name}, are you a mage or a warrior?", font=(self.font, 40),
+                                  style="danger.TLabel")
+        self.new_game.grid(row=0, column=1, pady=0, columnspan=3)
+
+        mage = ttk.Button(self, style="danger.outline.TButton", text="Mage")
+        mage.grid(row=1, column=1, pady=(10, 10), columnspan=3)
+        warrior = ttk.Button(self, style="danger.outline.TButton", text="Warrior")
+        warrior.grid(row=2, column=1, pady=(10, 200), columnspan=3)
+
+    def mage(self):
+        spells = [1, 2]
+        attack = 8
+        defence = 3
+
+        player = Player(self.player_name, 1, 0, 20, attack, defence, "A", 0, [],
+                        None, None, spells)
+        player.link_spells()
+
+    def warrior(self):
+        spells = [8]
+        max_health = 35
+        attack = 10
+        defence = 5
+
+        player = Player(self.player_name, 1, 0, max_health, attack, defence, "A", 0, [],
+                        None, None, spells, max_health)
+        player.link_spells()
 
 
 class Dialogue(ttk.Frame):
@@ -1589,6 +1707,147 @@ class Dialogue(ttk.Frame):
         pass
 
 
+class Store(ttk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.player = parent.player
+        self.current_location = self.player.current_location()
+        self.npc = self.current_location.npc
+        self.parent = parent
+        self.grid(row=1, column=0, sticky="nsew")
+        self.columnconfigure(list(range(3)), weight=1, uniform="Silent_Creme")
+        self.rowconfigure(list(range(5)), weight=1)
+        self.rowconfigure(6, weight=3)
+        self.font = "VCR OSD MONO"
+
+        self.shop_name = ttk.Label(self, text=f"{self.npc.name}", font=(self.font, 28))
+        self.shop_name.grid(row=0, column=0, pady=(10, 20), columnspan=3)
+
+        self.player_coins = ttk.Label(self, text=f"{self.player.coins} COINS", font=(self.font, 18),
+                                      style="warning.TLabel")
+        self.player_coins.grid(row=1, column=0, pady=(10, 20), columnspan=3)
+
+        self.info = tk.Text(self, height=1, relief="ridge", font=("Helvetica", 16), state="disabled")
+        self.info.grid(row=2, column=0, columnspan=3, sticky="nsew")
+
+        self.leave = ttk.Button(self, text=f"Leave", style="danger.outline.TButton", width=10,
+                                command=lambda: self.parent.switch_frame(Menu))
+        self.leave.grid(row=3, column=0, pady=(10, 20), columnspan=3)
+        ttk.Separator(self, orient='horizontal').grid(row=4, column=0, columnspan=3, sticky="nsew", pady=(5, 10))
+        self.update_info(f"{self.npc.name}: {self.npc.dialogue_tree}")
+
+        self.shop_widgets = []
+        self.sell_widgets = []
+
+        self.swap_screen = ttk.Button(self, text=f"Sell Your Stuff!", style="success.outline.TButton",
+                                      command=lambda: self.sell())
+        self.swap_screen.grid(row=12, column=0, columnspan=3, pady=(50, 100))
+        self.create_shop()
+
+    def create_shop(self):
+        """create shop widgets"""
+        for w in self.sell_widgets:
+            w.destroy()
+
+        self.swap_screen.config(text=f"Sell Your Stuff!", command=lambda: self.sell())
+
+        row_num = 0
+        col_num = 0
+
+        for item, item_price in self.npc.shop_stock.items():
+            if col_num == 0:
+                row_num = 0
+            elif col_num % 3 == 0:
+                row_num += 5
+                col_num = 0
+
+            name = ttk.Label(self, text=f"{item.name}", style="success.TLabel", justify="left",
+                             font="Helvetica 18")
+            name.grid(row=5 + row_num, column=col_num)
+            self.shop_widgets.append(name)
+
+            desc = ttk.Label(self, text=f"{item.desc}", style="info.TLabel", justify="left",
+                             font="Helvetica 12")
+            desc.grid(row=6 + row_num, column=col_num)
+            self.shop_widgets.append(desc)
+
+            value = ttk.Button(self, text=f"Buy for: {item_price} coins", style="primary.TButton",
+                               command=lambda stock_item=item, price=item_price: self.buy_item(stock_item, price))
+            if self.player.coins < item_price or self.player.check_max_inv():
+                value.config(state="disabled", text=f"Buy for: {item_price} coins")
+            if self.player.check_max_inv():
+                self.update_info(f"\nMax inventory! Sell or remove items!")
+            value.grid(row=7 + row_num, column=col_num)
+            self.shop_widgets.append(value)
+
+            col_num += 1
+
+    def sell(self):
+        """create items to sell"""
+        for w in self.shop_widgets:
+            w.destroy()
+
+        for w in self.sell_widgets:
+            w.destroy()
+
+        self.swap_screen.config(text="Return to store", command=lambda: self.create_shop())
+
+
+        row_num = 0
+        col_num = 0
+
+        for item in self.player.inv:
+            print(item)
+            if col_num == 0:
+                row_num = 0
+            elif col_num % 3 == 0:
+                row_num += 5
+                col_num = 0
+
+            sell_name = ttk.Label(self, text=item.name, style="success.TLabel", justify="left",
+                                  font="Helvetica 18")
+            sell_name.grid(row=5 + row_num, column=col_num)
+            self.sell_widgets.append(sell_name)
+
+            sell_desc = ttk.Label(self, text=f"{item.desc}", style="info.TLabel", justify="left",
+                                  font="Helvetica 12")
+            sell_desc.grid(row=6 + row_num, column=col_num)
+            self.sell_widgets.append(sell_desc)
+
+            sell_value = ttk.Button(self, text=f"Sell for: {item.value} coins", style="primary.TButton",
+                                    command=lambda stock_item=item: self.sell_item(stock_item))
+
+            if item.value <= 0:
+                sell_value.config(state="disabled", text=f"No value!")
+
+            sell_value.grid(row=7 + row_num, column=col_num)
+            self.sell_widgets.append(sell_value)
+
+    def buy_item(self, item, item_price):
+        """buy item adds to player inv"""
+        self.update_info(f"\nBought {item.name}!")
+        self.player.combat_take_item(item)
+        self.player.coins -= item_price
+        self.player_coins.config(text=f"{self.player.coins} COINS")
+        self.create_shop()
+
+    def sell_item(self, item):
+        """buy item adds to player inv"""
+        self.update_info(f"\nSold {item.name}!")
+        self.player.inv.remove(item)
+        self.player.coins += item.value
+        self.player_coins.config(text=f"{self.player.coins} COINS")
+        self.sell()
+
+
+    def update_info(self, content):
+        """update information """
+        self.info.config(state="normal")
+        self.info.insert(tk.END, content)
+        self.info.config(state="disabled")
+        self.info.see("end")
+
+
 class Menu(ttk.Frame):
     """menu for player interaction"""
 
@@ -1629,7 +1888,10 @@ class Menu(ttk.Frame):
         for dest in self.current_location.dest:
             self.move_button = ttk.Button(self, style="primary.Outline.TButton", text=f"Move to {dest.desc}",
                                           command=lambda destination=dest: self.move(destination))
-            if self.if_locked(dest.name):
+            if self.check_boss(dest):  # if dest has a boss warn player
+                self.move_button.config(style="danger.Outline.TButton", text=f"Move to {dest.desc}\n"
+                                                                             f"Fight will begin immediately!")
+            elif self.check_locked(dest.name):
                 self.move_button.config(state="disabled", text=f"{dest.desc} is locked!")
 
             self.move_button.grid(row=4, ipadx=10, ipady=2, padx=4, pady=(0, 50), column=col_num, sticky="nsew",
@@ -1644,6 +1906,8 @@ class Menu(ttk.Frame):
         if self.current_location.check_npc():
             self.talk_button = ttk.Button(self, style="success.Outline.TButton", text=f"Talk",
                                           command=lambda: self.parent.switch_frame(Dialogue))
+            if isinstance(self.current_location.npc, Shop):  # if npc is a shop
+                self.talk_button.config(text="Enter Store", command=lambda: self.parent.switch_frame(Store))
             self.talk_button.grid(row=5, ipadx=10, ipady=2, padx=4, column=0, pady=50, sticky="nsew", columnspan=1)
             self.buttons.append(self.talk_button)
 
@@ -1689,7 +1953,7 @@ class Menu(ttk.Frame):
             else:
                 self.take_dropdown.config(state="disabled", text="Max inventory!")
 
-    def if_locked(self, dest_name):
+    def check_locked(self, dest_name):
         """ checks if the player has key for locked location """
         key = self.current_location.dest_locked(dest_name)
         if key:  # if a key is required
@@ -1698,6 +1962,17 @@ class Menu(ttk.Frame):
         else:
             return False
         return True
+
+    @staticmethod
+    def check_boss(dest):
+        """checks if dest has a boss"""
+        if dest.enemy:
+            boss = dest.enemy[0].boss
+            if boss:
+                return True
+            else:
+                return False
+        return False
 
     def unlock(self):
         """unlocks locked location and removes key from inv"""
@@ -1708,7 +1983,6 @@ class Menu(ttk.Frame):
             self.current_location.key = None
         else:
             return False
-
 
     def move(self, dest):
         """moves the player to destination"""
@@ -1743,7 +2017,11 @@ class Menu(ttk.Frame):
         for dest in self.current_location.dest:
             self.move_button = ttk.Button(self, style="primary.Outline.TButton", text=f"Move to {dest.desc}",
                                           command=lambda destination=dest: self.move(destination))
-            if self.if_locked(dest.name):
+
+            if self.check_boss(dest):  # if dest has a boss warn player
+                self.move_button.config(style="danger.Outline.TButton", text=f"Move to {dest.desc}\n"
+                                                                             f"Fight will begin immediately!")
+            if self.check_locked(dest.name):
                 self.move_button.config(state="disabled", text=f"{dest.desc} is locked!")
 
             self.move_button.grid(row=4, ipadx=10, ipady=2, padx=4, pady=(0, 50), column=col_num, sticky="nsew",
@@ -1758,6 +2036,9 @@ class Menu(ttk.Frame):
         if self.current_location.check_npc():
             self.talk_button = ttk.Button(self, style="success.Outline.TButton", text=f"Talk",
                                           command=lambda: self.parent.switch_frame(Dialogue))
+            if isinstance(self.current_location.npc, Shop):  # if npc is a shop
+                self.talk_button.config(text="Enter Store", command=lambda: self.parent.switch_frame(Store))
+
             self.talk_button.grid(row=5, ipadx=10, ipady=2, padx=4, column=0, pady=50, sticky="nsew", columnspan=1)
             self.buttons.append(self.talk_button)
 
@@ -1793,11 +2074,11 @@ class StatusBar(ttk.Frame):
         self.player = parent.player
         self.parent = parent
         self.previous_frame = parent.previous_frame[-1]
-        print("Current Frame:", parent.frame_name)
 
-        frame_inv = ["Menu", "CombatScreen"]
+        no_status_bar = ["NewGame", "GameOver", "MainMenu"]
+        frame_inv = ["Menu", "CombatScreen", "Store"]
 
-        if parent.frame_name != "GameOver" and parent.frame_name != "MainMenu":
+        if parent.frame_name not in no_status_bar:
             if parent.frame_name in frame_inv:
                 self.inv = ttk.Button(parent, text=f"Open {self.player.name}'s Inventory",
                                       command=lambda: self.switch_frame(Inventory))
@@ -1827,7 +2108,7 @@ SPELLS = chain(Buff.generate_from_file("spells.txt"), Heal.generate_from_file("s
 ALL_SPELLS = [spell for spell in SPELLS]
 ALL_ENEMIES = [enemy for enemy in ENEMIES]
 
-NPCS = NPC.generate_from_file("npc.json")
+NPCS = chain(NPC.generate_from_file("npc.json"), Shop.generate_from_file("shop.json"))
 ALL_NPCS = [npc for npc in NPCS]
 LOCATIONS = [Location(**loc) for loc in LOC_LIST]
 for loc in LOCATIONS:
@@ -1837,8 +2118,8 @@ for loc in LOCATIONS:
 def main():
     """ Main game loop """
     # test player
-    player = Player('test', 1, 0, 20, 10,
-                    3, "A", 0, [], None, None, [1, 2, 8])
+    player = Player('test', 1, 0, 10, 10,
+                    3, "A", 50, [], None, None, [1, 2, 8])
     player.link_spells()
 
     open('infosave.txt', 'w').close()

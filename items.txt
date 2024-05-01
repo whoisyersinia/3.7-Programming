@@ -1,4 +1,4 @@
-1,Wooden Sword,A plain looking sword. +5 Attack.,0,5
+1,Wooden Sword,A plain looking sword. +5 Attack.,5,5
 2,Rusty Iron Sword,A rustic sword. +8 Attack.,2,8
 3,Small Health Potion,Consumable. +15 HP.,1,0,0,15
 
