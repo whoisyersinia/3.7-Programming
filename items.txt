@@ -1,6 +1,10 @@
-1,Wooden Sword,A plain looking sword. +5 Attack.,5,5
-2,Rusty Iron Sword,A rustic sword. +8 Attack.,2,8
-3,Small Health Potion,Consumable. +15 HP.,1,0,0,15
-
-
+1,Wooden Sword,A plain looking sword. +5 Attack.,2,5
+2,Rusty Iron Sword,A rustic sword. +8 Attack.,5,8
+3,Iron Sword,Shiny. +12 Attack.,10,12
+4,Dark Sword,Dark. +15 Attack.,15,15
+5,Small Health Potion,Consumable. +15 HP.,1,0,0,15
 6,Floor One Secret Room Key,Looks old,0
+7,Mayor's Key,Unlocks the Mayor's Office,0
+8,Pyramids Treasure Room Key,Unlocks Pyramids Treasure Room,0
+9,Chainmail Armour,+5 Defence,10,5
+10,Enhanced Leisure Club Hoodie,Stylish.+10 Defence,15,10

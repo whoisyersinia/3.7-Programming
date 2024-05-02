@@ -1,15 +1,26 @@
 {
-    "Arthur":{
-      "hi": "Hi there! How can I help you?",
-      "bye": "Goodbye! Come back anytime.",
-      "services": {
-          "What services do you offer?": {
-              "repair": "We offer repair services for all sorts of equipment.",
-              "sales": "We have a wide range of products available for sale.",
-              "information": "We can provide information about our services and products.",
-              "other": "Please specify what you're looking for."
-          },
-          "other": "I'm sorry, I didn't understand that. Would you like to ask something else?"
-      }
+    "Unknown Helper":{
+        "Ask": {
+            "Where am I?": "You're at the bottom floor of the tower. You're safe here.",
+            "Who are you?": "Just a good samaritan passing by!",
+            "Do you know what's at the top of the tower": "Oh! No one's been at the top. But it's been humanity's goal to reach the top.",
+            "Where's the city": "Just follow up the main road ahead! Be careful of the monsters ahead."
+        }
+    },
+    "Helpful Stranger": {
+          "Ask": {
+            "Where am I?": "You're at 'The City', the most advanced civilisation!",
+            "How do you get down the tower?": "Go the city gate here and there should be the entrance! Be careful!"
+        }
+    },
+    "Desert Dweller": {
+        "Hi": "Hello! How are you feeling in this weather!",
+        "Ask": {
+            "Where am I?": "You're at Floor 2 of the Tower. Head towards the pyramid to finish the floor!"
+        }
+    },
+    "Desert Dweller 2": {
+        "Hi": "Be careful heading in. There are monsters inside!",
+        "What are you doing here?": "I'm warning naive adventures like you!"
     }
 }
