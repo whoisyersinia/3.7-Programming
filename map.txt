@@ -6,11 +6,11 @@ E,'The City' - Residential Area,Reminds you of the architecture of Middle Ages E
 F,The Mayor's Office,The Mayor seems busy...,[E],"",[],False,7
 G,'The City' Gate,The border of 'The City'.,[H-I],"",[],False,False
 H,'The City' Marketplace,Buzzing with activity.,[E-G],Pearson - 'The City' General Shop,[],False,False
-I,Floor 2 Entrance,Are you ready to enter the depths?,[AA-N-G],"",[],False,False
+I,Staircase 1,Are you ready to enter the depths?,[AA-N-G],"",[],False,False
 J,Light Bushes,You delve into the thick of it!,[K-N],"",[],False,False
 K,Thick Forest,It gets thicker...,[J-L],"",[1],False,False
 L,Thicker Forest,It gets thicker...,[K-M],"",[1],False,False
-M,Thickest Forest,The thickest of them all.,[L-O],"",[],[2-5],False
+M,Goblin Hut,The Goblin King lives here...,[L-O],"",[2],[2-5],False
 N,Dark Forest,It's hard to see anything here!,[J-O-I],"",[],False,False
 O,Darker Forest,It's pitch black!,[N-M],"",[1],False,False
 AA,Floor 2 Start,The desert landscape leaves you in awe!,[I-AB-AT],Desert Dweller,[],False,False
@@ -20,18 +20,19 @@ AD,Pyramids Entrance,A great triangle-shaped structure welcomes you!,[AC-AE],Des
 AE,Pyramids North,It seems dark inside!,[AF],"",[],False,False
 AF,Pyramids Intersection,There are 4 paths you can take!,[AE-AG-AH-AI],"",[],False,False
 AG,Pyramids South,Something feels sinister...,[AF-AJ],"",[],False,False
-AH,Pyramids West,You delve deeper into this never ending maze!,[AF-AK],"",[],False,False
-AI,Pyramids East,You delve deeper into this never ending maze!,[AF-AO],"",[],False,False
+AH,Pyramids East,You delve deeper into this never ending maze!,[AF-AK],"",[],False,False
+AI,Pyramids West,You delve deeper into this never ending maze!,[AF-AO],"",[],False,False
 AJ,Pyramids Sarcophagus,Something Arises!,[AG-AS],"",[4],False,False
-AK,Pyramids West Intersection,There are 4 paths you can take!,[AH-AL-AM-AN],"",[3],[8],False
+AK,Pyramids East Intersection,There are 4 paths you can take!,[AH-AL-AM-AN],"",[3],False,False
 AL,Pyramids North,It seems like a dead end!,[AK],"",[],False,False
 AM,Pyramids Treasure Room,TREASURE!!!,[AK],"",[],[9-5-5],8
 AN,Pyramids South,Something feels sinister...,[AK-AJ],"",[],False,False
-AO,Pyramids East Intersection,There are 4 paths you can take!,[AI-AP-AQ-AR],"",[],False,False
+AO,Pyramids West Intersection,There are 4 paths you can take!,[AI-AP-AQ-AR],"",[],False,False
 AP,Pyramids North,It seems like a dead end!,[AO],"",[],False,False
 AQ,Pyramids Further West,There's something glowing in the corner!,[AO],"",[],[8],False
 AR,Pyramids South,Something feels sinister...,[AO-AJ],"",[],False,False
-AS,Floor 3 Entrance,Are you ready to delve further?,[BA],"",[],False,False
+AS,Staircase 2,Are you ready to delve further?,[BA-AJ],"",[],False,False
 AT,Dunes Intersection,You look at the vast desert!,[AU-AV-AA],"",[],False,False
 AU,Dunes Road,The road to nothing!,[AT-AC-AV],"",[5],False,False
 AV,Dunes,You see something buried in the desert!,[AT-AU],"",[],[2-5],False
+BA,Floor 3 Start,Twilight rules this floor!,[AS],"",[],False,False

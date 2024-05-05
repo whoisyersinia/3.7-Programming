@@ -3,8 +3,8 @@
         "Ask": {
             "Where am I?": "You're at the bottom floor of the tower. You're safe here.",
             "Who are you?": "Just a good samaritan passing by!",
-            "Do you know what's at the top of the tower": "Oh! No one's been at the top. But it's been humanity's goal to reach the top.",
-            "Where's the city": "Just follow up the main road ahead! Be careful of the monsters ahead."
+            "Do you know what's at the top of the tower?": "Oh! No one's been at the top. But it's been humanity's goal to reach the top.",
+            "Where's the city?": "Just follow up the main road ahead! Be careful of the monsters ahead."
         }
     },
     "Helpful Stranger": {
